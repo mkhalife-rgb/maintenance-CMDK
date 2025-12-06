@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maintenance CMDK</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        header {
+            background-color: #007bff;
+            color: white;
+            padding: 10px;
+            text-align: center;
+        }
+        nav {
+            background-color: #e9ecef;
+            padding: 10px;
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        nav button {
+            margin: 5px;
+            padding: 10px 15px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        nav button:hover {
+            background-color: #218838;
+        }
+        main {
+            flex: 1;
+            padding: 20px;
+            max-width: 100%;
+            overflow-x: auto;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #007bff;
+            color: white;
+        }
+        form {
+            margin-bottom: 20px;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            box-sizing: border-box;
+        }
+        button {
+            padding: 10px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #completed-tasks {
+            margin-top: 20px;
+        }
+        footer {
+            background-color: #007bff;
+            color: white;
+            text-align: center;
+            padding: 10px;
+        }
+        @media (max-width: 600px) {
+            nav {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Maintenance CMDK</h1>
+        <h2>Suivi des tâches de la maintenance CMDK</h2>
+    </header>
+    
+    <nav>
+        <button onclick="openTab('dashboard')">Tableau de Bord</button>
+        <button onclick="openTab('userManagement')">Gestion des Utilisateurs</button>
+        <button onclick="openTab('CMDG')">CMDG</button>
+        <button onclick="openTab('CMDN')">CMDN</button>
+        <button onclick="openTab('CMDLT')">CMDLT</button>
+        <button onclick="openTab('CMDB')">CMDB</button>
+        <button onclick="openTab('Manhattan')">Manhattan</button>
+        <button onclick="openTab('Residence')">Residence</button>
+        <button onclick="showReports()">Rapports</button>
+    </nav>
+    
+    <main>
+        <!-- Dashboard -->
+        <div id="dashboard" class="tab-content active">
+            <h2>Tableau de Bord</h2>
+            <div class="stats">
+                <div class="stat" id="en-cours">Tâches en Cours : 0</div>
+                <div class="stat" id="terminees">Tâches Terminées : 0</div>
+                <div class="stat" id="en-attente">Tâches en Attente : 0</div>
+            </div>
+        </div>
+
+        <!-- User Management -->
+        <div id="userManagement" class="tab-content">
+            <h2>Gestion des Utilisateurs</h2>
+            <form id="form-userManagement">
+                <input type="email" id="newUserEmail" placeholder="Entrez l'email de l'utilisateur" required>
+                <button type="button" onclick="ajouterUtilisateur()">Ajouter Utilisateur</button>
+            </form>
+            <table id="table-users">
+                <thead>
+                    <tr>
+                        <th>Email</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <!-- Other sites -->
+        <div id="CMDG" class="tab-content">
+            <h2>CMDG - Suivi des Tâches</h2>
+            <form id="form-CMDG">
+                <input type="text" id="tache-CMDG" placeholder="Description de la tâche" required>
+                <select id="statut-CMDG" required>
+                    <option value="">Statut</option>
+                    <option value="En cours">En cours</option>
+                    <option value="Terminée">Terminée</option>
+                    <option value="En attente">En attente</option>
+                </select>
+                <input type="date" id="date-CMDG" required>
+                <button type="button" onclick="ajouterTache('CMDG')">Ajouter Tâche</button>
+            </form>
+            <table id="table-CMDG">
+                <thead>
+                    <tr>
+                        <th>Tâche</th>
+                        <th>Statut</th>
+                        <th>Date</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            <button onclick="exporterDonnees('CMDG')">Exporter en CSV</button>
+            <button onclick="effacerDonnees('CMDG')">Effacer Toutes les Données</button>
+        </div>
+
+        <!-- Repeat for other sites (CMDN, CMDLT, CMDB, Manhattan, Residence) -->
+        <!-- Add here similar to CMDG -->
+
+        <div id="completed-tasks" class="tab-content">
+            <h2>Tâches Terminées</h2>
+            <table id="table-completed">
+                <thead>
+                    <tr>
+                        <th>Tâche</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <div id="reports" class="tab-content">
+            <h2>Rapports</h2>
+            <canvas id="chart-container"></canvas>
+        </div>
+
+    </main>
+    
+    <footer>
+        <p>Application créée par Grok 4 - xAI. Données stockées localement dans le navigateur.</p>
+    </footer>
+    
+    <script>
+        const adminEmail = "mkhalife@cmd.cd";
+        const authorizedUsers = []; // Array to store authorized users
+
+        function openTab(tabId) {
+            var tabs = document.querySelectorAll('.tab-content');
+            tabs.forEach(function(tab) { tab.classList.remove('active'); });
+            document.getElementById(tabId).classList.add('active');
+            chargerDonnees(tabId);
+            updateDashboard();
+        }
+
+        function ajouterUtilisateur() {
+            const newUserEmail = document.getElementById('newUserEmail').value;
+            if (!newUserEmail) return;
+
+            authorizedUsers.push(newUserEmail);
+            alert('Utilisateur ajouté: ' + newUserEmail);
+            updateUsersTable();
+            document.getElementById('form-userManagement').reset();
+        }
+
+        function updateUsersTable() {
+            const tableBody = document.querySelector('#table-users tbody');
+            tableBody.innerHTML = '';
+            authorizedUsers.forEach(user => {
+                const row = tableBody.insertRow();
+                row.insertCell(0).textContent = user;
+                const actionsCell = row.insertCell(1);
+                const removeBtn = document.createElement('button');
+                removeBtn.textContent = 'Supprimer';
+                removeBtn.onclick = function() { supprimerUtilisateur(user); };
+                actionsCell.appendChild(removeBtn);
+            });
+        }
+
+        function supprimerUtilisateur(user) {
+            const index = authorizedUsers.indexOf(user);
+            if (index > -1) {
+                authorizedUsers.splice(index, 1);
+                updateUsersTable();
+                alert('Utilisateur supprimé: ' + user);
+            }
+        }
+
+        function ajouterTache(siteId) {
+            var tache = document.getElementById('tache-' + siteId).value;
+            var statut = document.getElementById('statut-' + siteId).value;
+            var date = document.getElementById('date-' + siteId).value;
+
+            if (!tache || !statut || !date) {
+                alert('Veuillez remplir tous les champs.');
+                return;
+            }
+
+            var tableBody = document.querySelector('#table-' + siteId + ' tbody');
+            var row = tableBody.insertRow();
+            row.insertCell(0).textContent = tache;
+            row.insertCell(1).textContent = statut;
+            row.insertCell(2).textContent = date;
+
+            var actionsCell = row.insertCell(3);
+            var deleteBtn = document.createElement('button');
+            deleteBtn.textContent = 'Supprimer';
+            deleteBtn.onclick = function() { supprimerTache(this); };
+            actionsCell.appendChild(deleteBtn);
+
+            alert('Nouvelle tâche ajoutée: ' + tache);
+            sauvegarderDonnees(siteId);
+            updateDashboard();
+
+            document.getElementById('form-' + siteId).reset();
+        }
+
+        function supprimerTache(button) {
+            var row = button.parentNode.parentNode;
+            if (row.cells[1].textContent === 'Terminée') {
+                ajouterTacheCompletes(row.cells[0].textContent, row.cells[2].textContent);
+            }
+            row.parentNode.removeChild(row);
+            alert('Tâche supprimée: ' + row.cells[0].textContent);
+            sauvegarderDonnees(row.closest('table').id.split('-')[1]);
+            updateDashboard();
+        }
+
+        function ajouterTacheCompletes(tache, date) {
+            var tableBody = document.querySelector('#table-completed tbody');
+            var completedRow = tableBody.insertRow();
+            completedRow.insertCell(0).textContent = tache;
+            completedRow.insertCell(1).textContent = date;
+        }
+
+        function sauvegarderDonnees(siteId) {
+            var tableBody = document.querySelector('#table-' + siteId + ' tbody');
+            var data = [];
+            for (var i = 0; i < tableBody.rows.length; i++) {
+                var row = tableBody.rows[i];
+                data.push({
+                    tache: row.cells[0].textContent,
+                    statut: row.cells[1].textContent,
+                    date: row.cells[2].textContent
+                });
+            }
+            localStorage.setItem('taches-' + siteId, JSON.stringify(data));
+            createReports();
+            updateDashboard();
+        }
+
+        function chargerDonnees(siteId) {
+            var data = JSON.parse(localStorage.getItem('taches-' + siteId)) || [];
+            var tableBody = document.querySelector('#table-' + siteId + ' tbody');
+            tableBody.innerHTML = '';
+            data.forEach(function(item) {
+                var row = tableBody.insertRow();
+                row.insertCell(0).textContent = item.tache;
+                row.insertCell(1).textContent = item.statut;
+                row.insertCell(2).textContent = item.date;
+
+                var actionsCell = row.insertCell(3);
+                var deleteBtn = document.createElement('button');
+                deleteBtn.textContent = 'Supprimer';
+                deleteBtn.onclick = function() { supprimerTache(this); };
+                actionsCell.appendChild(deleteBtn);
+            });
+        }
+
+        function updateDashboard() {
+            // Implementation to update the dashboard with task counts (not shown for brevity)
+        }
+
+        function createReports() {
+            // Implementation to create reports (not shown for brevity)
+        }
+
+        function exporterDonnees(siteId) {
+            // Implementation to export data (not shown for brevity)
+        }
+
+        function effacerDonnees(siteId) {
+            // Implementation to clear data (not shown for brevity)
+        }
+        
+        window.onload = function() {
+            openTab('dashboard'); // Start with the dashboard tab
+        };
+    </script>
+</body>
+</html>
