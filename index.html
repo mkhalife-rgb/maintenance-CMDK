@@ -1,216 +1,521 @@
-<!DOCTYPE html>  
-<html lang="fr">  
-<head>  
-    <meta charset="UTF-8">  
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">  
-    <title>Maintenance CMDK</title>  
-    <style>  
-        body { font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #f8f9fa; display: flex; flex-direction: column; min-height: 100vh; }  
-        header { background-color: #fd7e14; color: white; padding: 10px; text-align: center; position: relative; }  
-        #section-select { position: absolute; top: 10px; right: 10px; padding: 5px; font-size: 14px; background-color: #fd7e14; color: white; border: none; border-radius: 5px; cursor: pointer; width: auto; }  
-        nav { background-color: #e9ecef; padding: 10px; display: flex; justify-content: center; flex-wrap: wrap; align-items: center; }  
-        nav button { margin: 5px; padding: 10px 15px; background-color: #fd7e14; color: white; border: none; border-radius: 5px; cursor: pointer; }  
-        nav button:hover { background-color: #e06c0e; }  
-        main { flex: 1; padding: 20px; max-width: 100%; overflow-x: auto; }  
-        .tab-content { display: none; }  
-        .tab-content.active { display: block; }  
-        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }  
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }  
-        th { background-color: #fd7e14; color: white; }  
-        form { margin-bottom: 20px; }  
-        input, select { width: 100%; padding: 8px; margin: 5px 0; box-sizing: border-box; }  
-        button { padding: 10px; background-color: #fd7e14; color: white; border: none; border-radius: 5px; cursor: pointer; }  
-        button:hover { background-color: #e06c0e; }  
-        #error-message { color: red; }  
-        #tasksChart { max-width: 400px; margin: 20px auto; }  
-        .no-data { text-align: center; color: #666; padding: 10px; }  
-        @media (max-width: 600px) { nav { flex-direction: column; } }  
-    </style>  
-    <!-- Firebase SDK -->  
-    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>  
-    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>  
-    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>  
-    <!-- Chart.js -->  
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>  
-</head>  
-<body>  
-    <header>  
-        <h1>Maintenance CMDK</h1>  
-        <h2>Suivi des tâches</h2>  
-        <select id="section-select" onchange="changeSection(this.value)" disabled>  
-            <option value="maintenance">Maintenance</option>  
-            <option value="it">IT</option>  
-            <option value="biomed">Biomed</option>  
-            <option value="logout">Déconnexion</option>  
-        </select>  
-    </header>  
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maintenance CMDK</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #f8f9fa; display: flex; flex-direction: column; min-height: 100vh; }
+        header { background-color: #fd7e14; color: white; padding: 10px; text-align: center; position: relative; }
+        #section-select { position: absolute; top: 10px; right: 10px; padding: 5px; font-size: 14px; background-color: #fd7e14; color: white; border: none; border-radius: 5px; cursor: pointer; width: auto; }
+        nav { background-color: #e9ecef; padding: 10px; display: flex; justify-content: center; flex-wrap: wrap; align-items: center; }
+        nav button { margin: 5px; padding: 10px 15px; background-color: #fd7e14; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        nav button:hover { background-color: #e06c0e; }
+        main { flex: 1; padding: 20px; max-width: 100%; overflow-x: auto; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #fd7e14; color: white; }
+        form { margin-bottom: 20px; }
+        input, select { width: 100%; padding: 8px; margin: 5px 0; box-sizing: border-box; }
+        button { padding: 10px; background-color: #fd7e14; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background-color: #e06c0e; }
+        #error-message { color: red; }
+        #tasksChart { max-width: 400px; margin: 20px auto; }
+        .no-data { text-align: center; color: #666; padding: 10px; }
+        @media (max-width: 600px) { nav { flex-direction: column; } }
+    </style>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <header>
+        <h1>Maintenance CMDK</h1>
+        <h2>Suivi des tâches</h2>
+        <select id="section-select" onchange="changeSection(this.value)" disabled>
+            <option value="maintenance">Maintenance</option>
+            <option value="it">IT</option>
+            <option value="biomed">Biomed</option>
+            <option value="logout">Déconnexion</option>
+        </select>
+    </header>
     
-    <nav id="nav-bar"></nav>  
+    <nav id="nav-bar"></nav>
     
-    <main id="main-content"></main>  
+    <main id="main-content"></main>
     
-    <script>  
-        const firebaseConfig = {  
-            apiKey: "AIzaSyBoQtCgGc2l7Myvig91dJ_rP9Bn0wZxgLU",  
-            authDomain: "maintenance-cmdk-6613a.firebaseapp.com",  
-            databaseURL: "https://maintenance-cmdk-6613a-default-rtdb.europe-west1.firebasedatabase.app",  
-            projectId: "maintenance-cmdk-6613a",  
-            storageBucket: "maintenance-cmdk-6613a.firebasestorage.app",  
-            messagingSenderId: "113245925666",  
-            appId: "1:113245925666:web:be055abeb157e90e74357b",  
-            measurementId: "G-R5GYPC5SMZ"  
-        };  
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyBoQtCgGc2l7Myvig91dJ_rP9Bn0wZxgLU",
+            authDomain: "maintenance-cmdk-6613a.firebaseapp.com",
+            databaseURL: "https://maintenance-cmdk-6613a-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "maintenance-cmdk-6613a",
+            storageBucket: "maintenance-cmdk-6613a.firebasestorage.app",
+            messagingSenderId: "113245925666",
+            appId: "1:113245925666:web:be055abeb157e90e74357b",
+            measurementId: "G-R5GYPC5SMZ"
+        };
 
-        firebase.initializeApp(firebaseConfig);  
-        const db = firebase.database();  
-        const auth = firebase.auth();  
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        const auth = firebase.auth();
 
-        const adminEmail = "mkhalife@cmd.cd";  
-        let currentUser = null;  
-        let currentSection = 'maintenance';  
-        let tasksChart = null;  
-        const maintenanceSites = ['CMDG', 'CMDN', 'CMDLT', 'CMDB', 'Manhattan', 'Residence'];  
+        const adminEmail = "mkhalife@cmd.cd";
+        let currentUser = null;
+        let currentSection = 'maintenance';
+        let tasksChart = null;
+        const maintenanceSites = ['CMDG', 'CMDN', 'CMDLT', 'CMDB', 'Manhattan', 'Residence'];
 
-        auth.onAuthStateChanged(user => {  
-            currentUser = user;  
-            if (user) {  
-                document.getElementById('section-select').disabled = false;  
-                loadInterface();  
-            } else {  
-                loadLogin();  
-            }  
-        });  
+        auth.onAuthStateChanged(user => {
+            currentUser = user;
+            if (user) {
+                document.getElementById('section-select').disabled = false;
+                loadInterface();
+            } else {
+                loadLogin();
+            }
+        });
 
-        function changeSection(value) {  
-            if (value === 'logout') {  
-                logout();  
-                return;  
-            }  
-            currentSection = value;  
-            loadButtonsForSection();  
-            openTab('dashboard');  
-            chargerTousDonnees();  
-        }  
+        function changeSection(value) {
+            if (value === 'logout') {
+                logout();
+                return;
+            }
+            currentSection = value;
+            loadButtonsForSection();
+            openTab('dashboard');
+            chargerTousDonnees();
+        }
 
-        function loadLogin() {  
-            const main = document.getElementById('main-content');  
-            main.innerHTML = `  
-                <div id="login" class="tab-content active">  
-                    <h2>Connexion</h2>  
-                    <form id="form-login">  
-                        <input type="email" id="email" placeholder="Email" required>  
-                        <input type="password" id="password" placeholder="Mot de passe" required>  
-                        <button type="button" onclick="login()">Se connecter</button>  
-                        <button type="button" onclick="register()">S'inscrire</button>  
-                    </form>  
-                    <p id="login-message"></p>  
-                    <p id="error-message"></p>  
-                </div>  
-            `;  
-            document.getElementById('nav-bar').innerHTML = '';  
-            document.getElementById('section-select').disabled = true;  
-            document.getElementById('section-select').value = 'maintenance';  
-        }  
+        function loadLogin() {
+            const main = document.getElementById('main-content');
+            main.innerHTML = `
+                <div id="login" class="tab-content active">
+                    <h2>Connexion</h2>
+                    <form id="form-login">
+                        <input type="email" id="email" placeholder="Email" required>
+                        <input type="password" id="password" placeholder="Mot de passe" required>
+                        <button type="button" onclick="login()">Se connecter</button>
+                        <button type="button" onclick="register()">S'inscrire</button>
+                    </form>
+                    <p id="login-message"></p>
+                    <p id="error-message"></p>
+                </div>
+            `;
+            document.getElementById('nav-bar').innerHTML = '';
+            document.getElementById('section-select').disabled = true;
+            document.getElementById('section-select').value = 'maintenance';
+        }
 
-        function login() {  
-            const email = document.getElementById('email').value;  
-            const password = document.getElementById('password').value;  
-            auth.signInWithEmailAndPassword(email, password)  
-                .then(() => {  
-                    document.getElementById('login-message').textContent = 'Connecté !';  
-                    loadInterface();  
-                })  
-                .catch(err => {  
-                    document.getElementById('error-message').textContent = 'Erreur: ' + err.message;  
-                    console.error('Erreur de connexion:', err); // Pour debug  
-                });  
-        }  
+        function login() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            auth.signInWithEmailAndPassword(email, password)
+                .then(() => {
+                    const messageElement = document.getElementById('login-message');
+                    if (messageElement) messageElement.textContent = 'Connecté !'; // Mise à jour avant de charger l'interface
+                    loadInterface();
+                })
+                .catch(err => {
+                    const errorElement = document.getElementById('error-message');
+                    if (errorElement) errorElement.textContent = 'Erreur: ' + err.message;
+                    console.error('Erreur de connexion:', err);
+                });
+        }
 
-        function register() {  
-            const email = document.getElementById('email').value;  
-            const password = document.getElementById('password').value;  
-            auth.createUserWithEmailAndPassword(email, password)  
-                .then(() => document.getElementById('login-message').textContent = 'Inscrit ! Connecte-toi.')  
-                .catch(err => {  
-                    document.getElementById('error-message').textContent = 'Erreur: ' + err.message;  
-                    console.error('Erreur d\'inscription:', err); // Pour debug  
-                });  
-        }  
+        function register() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            auth.createUserWithEmailAndPassword(email, password)
+                .then(() => {
+                    const messageElement = document.getElementById('login-message');
+                    if (messageElement) messageElement.textContent = 'Inscrit ! Connecte-toi.';
+                })
+                .catch(err => {
+                    const errorElement = document.getElementById('error-message');
+                    if (errorElement) errorElement.textContent = 'Erreur: ' + err.message;
+                    console.error('Erreur d\'inscription:', err);
+                });
+        }
 
-        function logout() {  
-            auth.signOut().then(() => loadLogin());  
-        }  
+        function logout() {
+            auth.signOut().then(() => loadLogin());
+        }
 
-        function loadInterface() {  
-            const main = document.getElementById('main-content');  
-            main.innerHTML = '';  
-            // Tabs communs  
-            main.innerHTML += `  
-                <div id="dashboard" class="tab-content">  
-                    <h2>Tableau de Bord</h2>  
-                    <div class="stats">  
-                        <div class="stat" id="en-cours">Tâches en Cours : 0</div>  
-                        <div class="stat" id="terminees">Tâches Terminées : 0</div>  
-                        <div class="stat" id="en-attente">Tâches en Attente : 0</div>  
-                    </div>  
-                    <canvas id="tasksChart"></canvas>  
-                </div>  
-                <div id="userManagement" class="tab-content">  
-                    <h2>Gestion des Utilisateurs</h2>  
-                    <form id="form-userManagement">  
-                        <input type="email" id="newUserEmail" placeholder="Entrez l'email de l'utilisateur" required>  
-                        <button type="button" onclick="ajouterUtilisateur()">Ajouter Utilisateur</button>  
-                    </form>  
-                    <table id="table-users">  
-                        <thead><tr><th>Email</th><th>Actions</th></tr></thead>  
-                        <tbody></tbody>  
-                    </table>  
-                </div>  
-                <div id="reports" class="tab-content">  
-                    <h2>Rapports</h2>  
-                    <button onclick="generateReports()">Générer Rapports</button>  
-                    <h3>Rapport Mensuel</h3>  
-                    <pre id="monthly-report"></pre>  
-                    <h3>Rapport Annuel</h3>  
-                    <pre id="annual-report"></pre>  
-                </div>  
-                <div id="completed-tasks" class="tab-content">  
-                    <h2>Tâches Terminées</h2>  
-                    <table id="table-completed">  
-                        <thead><tr><th>Tâche</th><th>Date</th></tr></thead>  
-                        <tbody></tbody>  
-                    </table>  
-                    <button type="button" onclick="effacerToutesDonneesTerminees()">Effacer Toutes les Tâches Terminées</button>  
-                </div>  
-            `;  
-            // Tabs spécifiques  
-            if (currentSection !== 'maintenance') {  
-                main.innerHTML += `  
-                    <div id="tasks" class="tab-content">  
-                        <h2>Tâches à Suivre</h2>  
-                        <form id="form-tasks">  
-                            <input type="text" id="tache-tasks" placeholder="Description de la tâche" required>  
-                            <select id="statut-tasks" required>  
-                                <option value="">Statut</option>  
-                                <option value="En cours">En cours</option>  
-                                <option value="Terminée">Terminée</option>  
-                                <option value="En attente">En attente</option>  
-                            </select>  
-                            <input type="date" id="date-tasks" required>  
-                            <button type="button" onclick="ajouterTache('tasks')">Ajouter Tâche</button>  
-                        </form>  
-                        <table id="table-tasks">  
-                            <thead><tr><th>Tâche</th><th>Statut</th><th>Date</th><th>Actions</th></tr></thead>  
-                            <tbody></tbody>  
-                        </table>  
-                        <button onclick="exporterDonnees('tasks')">Exporter en CSV</button>  
-                    </div>  
-                `;  
-            } else {  
-                maintenanceSites.forEach(site => {  
-                    main.innerHTML += `  
-                        <div id="${site}" class="tab-content">  
-                            <h2>${site} - Suivi des Tâches</h2>  
-                            <form id="form-${site}">  
-                                <input type="text" id="tache-${site}" placeholder="Description de la tâche" required>  
-                                <select id="statut-${site}"
+        function loadInterface() {
+            const main = document.getElementById('main-content');
+            main.innerHTML = '';
+            // Tabs communs
+            main.innerHTML += `
+                <div id="dashboard" class="tab-content">
+                    <h2>Tableau de Bord</h2>
+                    <div class="stats">
+                        <div class="stat" id="en-cours">Tâches en Cours : 0</div>
+                        <div class="stat" id="terminees">Tâches Terminées : 0</div>
+                        <div class="stat" id="en-attente">Tâches en Attente : 0</div>
+                    </div>
+                    <canvas id="tasksChart"></canvas>
+                </div>
+                <div id="userManagement" class="tab-content">
+                    <h2>Gestion des Utilisateurs</h2>
+                    <form id="form-userManagement">
+                        <input type="email" id="newUserEmail" placeholder="Entrez l'email de l'utilisateur" required>
+                        <button type="button" onclick="ajouterUtilisateur()">Ajouter Utilisateur</button>
+                    </form>
+                    <table id="table-users">
+                        <thead><tr><th>Email</th><th>Actions</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div id="reports" class="tab-content">
+                    <h2>Rapports</h2>
+                    <button onclick="generateReports()">Générer Rapports</button>
+                    <h3>Rapport Mensuel</h3>
+                    <pre id="monthly-report"></pre>
+                    <h3>Rapport Annuel</h3>
+                    <pre id="annual-report"></pre>
+                </div>
+                <div id="completed-tasks" class="tab-content">
+                    <h2>Tâches Terminées</h2>
+                    <table id="table-completed">
+                        <thead><tr><th>Tâche</th><th>Date</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                    <button type="button" onclick="effacerToutesDonneesTerminees()">Effacer Toutes les Tâches Terminées</button>
+                </div>
+            `;
+            // Tabs spécifiques
+            if (currentSection !== 'maintenance') {
+                main.innerHTML += `
+                    <div id="tasks" class="tab-content">
+                        <h2>Tâches à Suivre</h2>
+                        <form id="form-tasks">
+                            <input type="text" id="tache-tasks" placeholder="Description de la tâche" required>
+                            <select id="statut-tasks" required>
+                                <option value="">Statut</option>
+                                <option value="En cours">En cours</option>
+                                <option value="Terminée">Terminée</option>
+                                <option value="En attente">En attente</option>
+                            </select>
+                            <input type="date" id="date-tasks" required>
+                            <button type="button" onclick="ajouterTache('tasks')">Ajouter Tâche</button>
+                        </form>
+                        <table id="table-tasks">
+                            <thead><tr><th>Tâche</th><th>Statut</th><th>Date</th><th>Actions</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                        <button onclick="exporterDonnees('tasks')">Exporter en CSV</button>
+                    </div>
+                `;
+            } else {
+                maintenanceSites.forEach(site => {
+                    main.innerHTML += `
+                        <div id="${site}" class="tab-content">
+                            <h2>${site} - Suivi des Tâches</h2>
+                            <form id="form-${site}">
+                                <input type="text" id="tache-${site}" placeholder="Description de la tâche" required>
+                                <select id="statut-${site}" required>
+                                    <option value="">Statut</option>
+                                    <option value="En cours">En cours</option>
+                                    <option value="Terminée">Terminée</option>
+                                    <option value="En attente">En attente</option>
+                                </select>
+                                <input type="date" id="date-${site}" required>
+                                <button type="button" onclick="ajouterTache('${site}')">Ajouter Tâche</button>
+                            </form>
+                            <table id="table-${site}">
+                                <thead><tr><th>Tâche</th><th>Statut</th><th>Date</th><th>Actions</th></tr></thead>
+                                <tbody></tbody>
+                            </table>
+                            <button onclick="exporterDonnees('${site}')">Exporter en CSV</button>
+                        </div>
+                    `;
+                });
+            }
+            loadButtonsForSection();
+            chargerTousDonnees();
+            openTab('dashboard');
+        }
+
+        function loadButtonsForSection() {
+            const nav = document.getElementById('nav-bar');
+            nav.innerHTML = '';
+            const commonTabs = ['dashboard', 'userManagement', 'reports', 'completed-tasks'];
+            commonTabs.forEach(tabId => {
+                const btn = document.createElement('button');
+                btn.textContent = tabId.charAt(0).toUpperCase() + tabId.slice(1).replace('-', ' ');
+                btn.onclick = () => openTab(tabId);
+                nav.appendChild(btn);
+            });
+            if (currentSection !== 'maintenance') {
+                const btn = document.createElement('button');
+                btn.textContent = 'Tâches à Suivre';
+                btn.onclick = () => openTab('tasks');
+                nav.appendChild(btn);
+            } else {
+                maintenanceSites.forEach(site => {
+                    const btn = document.createElement('button');
+                    btn.textContent = site;
+                    btn.onclick = () => openTab(site);
+                    nav.appendChild(btn);
+                });
+            }
+        }
+
+        function openTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            const tab = document.getElementById(tabId);
+            if (tab) {
+                tab.classList.add('active');
+            }
+            if (tabId === 'userManagement') updateUsersTable();
+            if (maintenanceSites.includes(tabId) || tabId === 'tasks' || tabId === 'completed-tasks') chargerDonnees(tabId);
+            if (tabId === 'dashboard') updateDashboard();
+        }
+
+        function isAdmin() {
+            return currentUser && currentUser.email === adminEmail;
+        }
+
+        function isAuthorized() {
+            return !!currentUser;
+        }
+
+        function ajouterUtilisateur() {
+            if (!isAdmin()) return alert('Seul l\'admin peut ajouter des utilisateurs.');
+            const newUserEmail = document.getElementById('newUserEmail').value;
+            if (!newUserEmail) return;
+            db.ref('authorizedUsers').push(newUserEmail);
+            alert('Utilisateur ajouté: ' + newUserEmail);
+            updateUsersTable();
+        }
+
+        function updateUsersTable() {
+            const tableBody = document.querySelector('#table-users tbody');
+            if (!tableBody) return;
+            tableBody.innerHTML = '';
+            db.ref('authorizedUsers').once('value', snapshot => {
+                snapshot.forEach(child => {
+                    const user = child.val();
+                    const row = tableBody.insertRow();
+                    row.insertCell(0).textContent = user;
+                    const actionsCell = row.insertCell(1);
+                    const removeBtn = document.createElement('button');
+                    removeBtn.textContent = 'Supprimer';
+                    removeBtn.onclick = () => db.ref('authorizedUsers/' + child.key).remove().then(updateUsersTable);
+                    actionsCell.appendChild(removeBtn);
+                });
+            });
+        }
+
+        function ajouterTache(siteId) {
+            if (!isAuthorized()) return alert('Connectez-vous pour ajouter des tâches.');
+            const tache = document.getElementById(`tache-${siteId}`).value;
+            const statut = document.getElementById(`statut-${siteId}`).value;
+            const date = document.getElementById(`date-${siteId}`).value;
+            if (!tache || !statut || !date) return alert('Veuillez remplir tous les champs.');
+            const refPath = currentSection === 'maintenance' ? `${currentSection}/tasks/${siteId}` : `${currentSection}/tasks`;
+            db.ref(refPath).push({ tache, statut, date });
+            document.getElementById(`form-${siteId}`).reset();
+            alert('Tâche ajoutée !');
+            openTab('dashboard');
+        }
+
+        function showStatusSelect(siteId, key, statutCell, currentStatut, tache, date) {
+            const select = document.createElement('select');
+            ['En cours', 'Terminée', 'En attente'].forEach(opt => {
+                const option = document.createElement('option');
+                option.value = opt;
+                option.textContent = opt;
+                option.selected = opt === currentStatut;
+                select.appendChild(option);
+            });
+            const saveBtn = document.createElement('button');
+            saveBtn.textContent = 'Sauvegarder';
+            saveBtn.onclick = () => {
+                const newStatut = select.value;
+                if (newStatut !== currentStatut) {
+                    const refPath = currentSection === 'maintenance' ? `${currentSection}/tasks/${siteId}/${key}` : `${currentSection}/tasks/${key}`;
+                    db.ref(refPath).update({ statut: newStatut });
+                    if (newStatut === 'Terminée') {
+                        db.ref(`${currentSection}/completed-tasks`).push({ tache, date });
+                        db.ref(refPath).remove();
+                        alert('Tâche mise à "Terminée" et déplacée.');
+                    } else {
+                        alert('Statut mis à jour.');
+                    }
+                    updateDashboard();
+                }
+                statutCell.innerHTML = newStatut;
+            };
+            statutCell.innerHTML = '';
+            statutCell.appendChild(select);
+            statutCell.appendChild(saveBtn);
+        }
+
+        function supprimerTache(siteId, key, tache, statut, date) {
+            if (!isAuthorized()) return alert('Non autorisé.');
+            const refPath = currentSection === 'maintenance' ? `${currentSection}/tasks/${siteId}/${key}` : `${currentSection}/tasks/${key}`;
+            if (statut === 'Terminée') {
+                db.ref(`${currentSection}/completed-tasks`).push({ tache, date });
+            }
+            db.ref(refPath).remove();
+            alert('Tâche supprimée ou déplacée.');
+            updateDashboard();
+        }
+
+        function chargerDonnees(tabId) {
+            let refPath = tabId === 'completed-tasks' ? `${currentSection}/completed-tasks` : (currentSection === 'maintenance' ? `${currentSection}/tasks/${tabId}` : `${currentSection}/tasks`);
+            const tableId = tabId === 'completed-tasks' ? 'table-completed' : `table-${tabId}`;
+            const tableBody = document.querySelector(`#${tableId} tbody`);
+            if (!tableBody) return;
+            db.ref(refPath).on('value', snapshot => {
+                tableBody.innerHTML = '';
+                if (!snapshot.exists() || snapshot.numChildren() === 0) {
+                    const row = tableBody.insertRow();
+                    const cell = row.insertCell(0);
+                    cell.colSpan = (tabId === 'completed-tasks' ? 2 : 4);
+                    cell.classList.add('no-data');
+                    cell.textContent = 'Aucune tâche pour le moment.';
+                    return;
+                }
+                snapshot.forEach(child => {
+                    const item = child.val();
+                    const row = tableBody.insertRow();
+                    row.insertCell(0).textContent = item.tache;
+                    if (tabId === 'completed-tasks') {
+                        row.insertCell(1).textContent = item.date;
+                    } else {
+                        const statutCell = row.insertCell(1);
+                        statutCell.textContent = item.statut;
+                        row.insertCell(2).textContent = item.date;
+                        const actionsCell = row.insertCell(3);
+                        const editBtn = document.createElement('button');
+                        editBtn.textContent = 'Modifier Statut';
+                        editBtn.onclick = () => showStatusSelect(tabId, child.key, statutCell, item.statut, item.tache, item.date);
+                        actionsCell.appendChild(editBtn);
+                        const deleteBtn = document.createElement('button');
+                        deleteBtn.textContent = 'Supprimer';
+                        deleteBtn.onclick = () => supprimerTache(tabId, child.key, item.tache, item.statut, item.date);
+                        actionsCell.appendChild(deleteBtn);
+                    }
+                });
+            });
+        }
+
+        function chargerTousDonnees() {
+            if (currentSection === 'maintenance') {
+                maintenanceSites.forEach(site => chargerDonnees(site));
+            } else {
+                chargerDonnees('tasks');
+            }
+            chargerDonnees('completed-tasks');
+        }
+
+        function exporterDonnees(siteId) {
+            const refPath = currentSection === 'maintenance' ? `${currentSection}/tasks/${siteId}` : `${currentSection}/tasks`;
+            db.ref(refPath).once('value', snapshot => {
+                let csv = 'Tâche,Statut,Date\n';
+                snapshot.forEach(child => {
+                    const item = child.val();
+                    csv += `${item.tache},${item.statut},${item.date}\n`;
+                });
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = `${siteId}_tasks.csv`;
+                a.click();
+            });
+        }
+
+        function effacerToutesDonneesTerminees() {
+            if (!isAdmin()) return alert('Seul l\'admin peut effacer.');
+            if (confirm('Êtes-vous sûr ?')) {
+                db.ref(`${currentSection}/completed-tasks`).remove();
+                alert('Tâches terminées effacées.');
+            }
+        }
+
+        function updateDashboard() {
+            const canvas = document.getElementById('tasksChart');
+            if (!canvas) return;
+            let enCours = 0, terminees = 0, enAttente = 0;
+            const refPath = `${currentSection}/tasks`;
+            db.ref(refPath).once('value', snapshot => {
+                snapshot.forEach(site => {
+                    site.forEach(task => {
+                        const statut = task.val().statut;
+                        if (statut === 'En cours') enCours++;
+                        else if (statut === 'Terminée') terminees++;
+                        else if (statut === 'En attente') enAttente++;
+                    });
+                });
+                document.getElementById('en-cours').textContent = `Tâches en Cours : ${enCours}`;
+                document.getElementById('terminees').textContent = `Tâches Terminées : ${terminees}`;
+                document.getElementById('en-attente').textContent = `Tâches en Attente : ${enAttente}`;
+
+                if (tasksChart) tasksChart.destroy();
+                const ctx = canvas.getContext('2d');
+                tasksChart = new Chart(ctx, {
+                    type: 'pie',
+                    data: {
+                        labels: ['En cours', 'Terminées', 'En attente'],
+                        datasets: [{
+                            data: [enCours, terminees, enAttente],
+                            backgroundColor: ['#ffc107', '#28a745', '#dc3545'],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true
+                    }
+                });
+            });
+        }
+
+        function generateReports() {
+            const refPath = `${currentSection}/tasks`;
+            db.ref(refPath).once('value', snapshot => {
+                const monthly = {};
+                const annual = {};
+                snapshot.forEach(siteSnap => {
+                    siteSnap.forEach(taskSnap => {
+                        const { date, statut } = taskSnap.val();
+                        if (!date) return;
+                        const taskDate = new Date(date);
+                        if (isNaN(taskDate)) return;
+                        const monthKey = `${taskDate.getFullYear()}-${taskDate.getMonth() + 1}`;
+                        const yearKey = taskDate.getFullYear();
+                        monthly[monthKey] = monthly[monthKey] || { added: 0, completed: 0 };
+                        annual[yearKey] = annual[yearKey] || { added: 0, completed: 0 };
+                        monthly[monthKey].added++;
+                        annual[yearKey].added++;
+                        if (statut === 'Terminée') {
+                            monthly[monthKey].completed++;
+                            annual[yearKey].completed++;
+                        }
+                    });
+                });
+                let monthlyText = '';
+                for (const [key, data] of Object.entries(monthly)) {
+                    monthlyText += `${key}: ${data.added} ajoutées, ${data.completed} terminées\n`;
+                }
+                let annualText = '';
+                for (const [key, data] of Object.entries(annual)) {
+                    annualText += `${key}: ${data.added} ajoutées, ${data.completed} terminées\n`;
+                }
+                document.getElementById('monthly-report').textContent = monthlyText || 'Aucune donnée mensuelle.';
+                document.getElementById('annual-report').textContent = annualText || 'Aucune donnée annuelle.';
+            });
+        }
+
+        // Initialisation
+        loadLogin();
+    </script>
+</body>
+</html>
