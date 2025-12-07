@@ -25,6 +25,10 @@
         #error-message { color: red; }
         @media (max-width: 600px) { nav { flex-direction: column; } }
     </style>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth.js"></script>
 </head>
 <body>
     <header>
@@ -43,11 +47,25 @@
         <button onclick="openTab('Residence')">Residence</button>
         <button onclick="openTab('reports')">Rapports</button>
         <button onclick="openTab('completed-tasks')">Tâches Terminées</button>
+        <button onclick="logout()">Déconnexion</button>
     </nav>
     
     <main>
+        <!-- Login -->
+        <div id="login" class="tab-content active">
+            <h2>Connexion</h2>
+            <form id="form-login">
+                <input type="email" id="email" placeholder="Email" required>
+                <input type="password" id="password" placeholder="Mot de passe" required>
+                <button type="button" onclick="login()">Se connecter</button>
+                <button type="button" onclick="register()">S'inscrire</button>
+            </form>
+            <p id="login-message"></p>
+            <p id="error-message"></p>
+        </div>
+
         <!-- Dashboard -->
-        <div id="dashboard" class="tab-content active">
+        <div id="dashboard" class="tab-content">
             <h2>Tableau de Bord</h2>
             <div class="stats">
                 <div class="stat" id="en-cours">Tâches en Cours : 0</div>
@@ -56,7 +74,7 @@
             </div>
         </div>
 
-        <!-- User Management (simplifié, sans auth réelle) -->
+        <!-- User Management -->
         <div id="userManagement" class="tab-content">
             <h2>Gestion des Utilisateurs</h2>
             <form id="form-userManagement">
@@ -91,7 +109,115 @@
             <button type="button" onclick="effacerDonnees('CMDG')">Effacer Toutes les Données</button>
         </div>
 
-        <!-- Les autres sections (CMDN, CMDLT, etc.) sont identiques à CMDG, je les omets pour ne pas allonger, mais ajoute-les comme dans ton code original ou copie de ma précédente réponse -->
+        <!-- CMDN -->
+        <div id="CMDN" class="tab-content">
+            <h2>CMDN - Suivi des Tâches</h2>
+            <form id="form-CMDN">
+                <input type="text" id="tache-CMDN" placeholder="Description de la tâche" required>
+                <select id="statut-CMDN" required>
+                    <option value="">Statut</option>
+                    <option value="En cours">En cours</option>
+                    <option value="Terminée">Terminée</option>
+                    <option value="En attente">En attente</option>
+                </select>
+                <input type="date" id="date-CMDN" required>
+                <button type="button" onclick="ajouterTache('CMDN')">Ajouter Tâche</button>
+            </form>
+            <table id="table-CMDN">
+                <thead><tr><th>Tâche</th><th>Statut</th><th>Date</th><th>Actions</th></tr></thead>
+                <tbody></tbody>
+            </table>
+            <button onclick="exporterDonnees('CMDN')">Exporter en CSV</button>
+            <button type="button" onclick="effacerDonnees('CMDN')">Effacer Toutes les Données</button>
+        </div>
+
+        <!-- CMDLT -->
+        <div id="CMDLT" class="tab-content">
+            <h2>CMDLT - Suivi des Tâches</h2>
+            <form id="form-CMDLT">
+                <input type="text" id="tache-CMDLT" placeholder="Description de la tâche" required>
+                <select id="statut-CMDLT" required>
+                    <option value="">Statut</option>
+                    <option value="En cours">En cours</option>
+                    <option value="Terminée">Terminée</option>
+                    <option value="En attente">En attente</option>
+                </select>
+                <input type="date" id="date-CMDLT" required>
+                <button type="button" onclick="ajouterTache('CMDLT')">Ajouter Tâche</button>
+            </form>
+            <table id="table-CMDLT">
+                <thead><tr><th>Tâche</th><th>Statut</th><th>Date</th><th>Actions</th></tr></thead>
+                <tbody></tbody>
+            </table>
+            <button onclick="exporterDonnees('CMDLT')">Exporter en CSV</button>
+            <button type="button" onclick="effacerDonnees('CMDLT')">Effacer Toutes les Données</button>
+        </div>
+
+        <!-- CMDB -->
+        <div id="CMDB" class="tab-content">
+            <h2>CMDB - Suivi des Tâches</h2>
+            <form id="form-CMDB">
+                <input type="text" id="tache-CMDB" placeholder="Description de la tâche" required>
+                <select id="statut-CMDB" required>
+                    <option value="">Statut</option>
+                    <option value="En cours">En cours</option>
+                    <option value="Terminée">Terminée</option>
+                    <option value="En attente">En attente</option>
+                </select>
+                <input type="date" id="date-CMDB" required>
+                <button type="button" onclick="ajouterTache('CMDB')">Ajouter Tâche</button>
+            </form>
+            <table id="table-CMDB">
+                <thead><tr><th>Tâche</th><th>Statut</th><th>Date</th><th>Actions</th></tr></thead>
+                <tbody></tbody>
+            </table>
+            <button onclick="exporterDonnees('CMDB')">Exporter en CSV</button>
+            <button type="button" onclick="effacerDonnees('CMDB')">Effacer Toutes les Données</button>
+        </div>
+
+        <!-- Manhattan -->
+        <div id="Manhattan" class="tab-content">
+            <h2>Manhattan - Suivi des Tâches</h2>
+            <form id="form-Manhattan">
+                <input type="text" id="tache-Manhattan" placeholder="Description de la tâche" required>
+                <select id="statut-Manhattan" required>
+                    <option value="">Statut</option>
+                    <option value="En cours">En cours</option>
+                    <option value="Terminée">Terminée</option>
+                    <option value="En attente">En attente</option>
+                </select>
+                <input type="date" id="date-Manhattan" required>
+                <button type="button" onclick="ajouterTache('Manhattan')">Ajouter Tâche</button>
+            </form>
+            <table id="table-Manhattan">
+                <thead><tr><th>Tâche</th><th>Statut</th><th>Date</th><th>Actions</th></tr></thead>
+                <tbody></tbody>
+            </table>
+            <button onclick="exporterDonnees('Manhattan')">Exporter en CSV</button>
+            <button type="button" onclick="effacerDonnees('Manhattan')">Effacer Toutes les Données</button>
+        </div>
+
+        <!-- Residence -->
+        <div id="Residence" class="tab-content">
+            <h2>Residence - Suivi des Tâches</h2>
+            <form id="form-Residence">
+                <input type="text" id="tache-Residence" placeholder="Description de la tâche" required>
+                <select id="statut-Residence" required>
+                    <option value="">Statut</option>
+                    <option value="En cours">En cours</option>
+                    <option value="Terminée">Terminée</option>
+                    <option value="En attente">En attente</option>
+                </select>
+                <input type="date" id="date-Residence" required>
+                <button type="button" onclick="ajouterTache('Residence')">Ajouter Tâche</button>
+            </form>
+            <table id="table-Residence">
+                <thead><tr><th>Tâche</th><th>Statut</th><th>Date</th><th>Actions</th></tr></thead>
+                <tbody></tbody>
+            </table>
+            <button onclick="exporterDonnees('Residence')">Exporter en CSV</button>
+            <button type="button" onclick="effacerDonnees('Residence')">Effacer Toutes les Données</button>
+        </div>
 
         <!-- Completed Tasks -->
         <div id="completed-tasks" class="tab-content">
@@ -114,14 +240,73 @@
     </main>
     
     <footer>
-        <p>Application créée par Grok 4 - xAI. Données stockées localement.</p>
+        <p>Application créée par Grok 4 - xAI. Données synchronisées via Firebase.</p>
     </footer>
     
     <script>
+        // Remplace par ta config Firebase réelle (obligatoire pour le partage)
+        const firebaseConfig = {
+            apiKey: "TA_CLE_API",
+            authDomain: "ton-projet.firebaseapp.com",
+            databaseURL: "https://ton-projet-default-rtdb.firebaseio.com",
+            projectId: "ton-projet",
+            storageBucket: "ton-projet.appspot.com",
+            messagingSenderId: "1234567890",
+            appId: "1:1234567890:web:xxxxxxxxxxxxxxxx"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        const auth = firebase.auth();
+
+        const adminEmail = "mkhalife@cmd.cd";
+        let currentUser = null;
         const sites = ['CMDG', 'CMDN', 'CMDLT', 'CMDB', 'Manhattan', 'Residence'];
-        const adminEmail = "mkhalife@cmd.cd"; // Pour gestion users, mais pas enforcé sans auth
+
+        auth.onAuthStateChanged(user => {
+            currentUser = user;
+            if (user) {
+                openTab('dashboard');
+                chargerTousDonnees();
+                updateDashboard();
+            } else {
+                openTab('login');
+            }
+        });
+
+        function login() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            auth.signInWithEmailAndPassword(email, password)
+                .then(() => document.getElementById('login-message').textContent = 'Connecté !')
+                .catch(err => document.getElementById('error-message').textContent = 'Erreur: ' + err.message);
+        }
+
+        function register() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            auth.createUserWithEmailAndPassword(email, password)
+                .then(() => document.getElementById('login-message').textContent = 'Inscrit ! Connecte-toi.')
+                .catch(err => document.getElementById('error-message').textContent = 'Erreur: ' + err.message);
+        }
+
+        function logout() {
+            auth.signOut();
+        }
+
+        function isAdmin() {
+            return currentUser && currentUser.email === adminEmail;
+        }
+
+        function isAuthorized() {
+            return !!currentUser;
+        }
 
         function openTab(tabId) {
+            if (!isAuthorized() && tabId !== 'login') {
+                openTab('login');
+                return;
+            }
             document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
             const tab = document.getElementById(tabId);
             if (tab) tab.classList.add('active');
@@ -131,167 +316,159 @@
         }
 
         function ajouterUtilisateur() {
+            if (!isAdmin()) return alert('Seul l\'admin peut ajouter des utilisateurs.');
             const newUserEmail = document.getElementById('newUserEmail').value;
             if (!newUserEmail) return;
-            let users = JSON.parse(localStorage.getItem('authorizedUsers')) || [];
-            users.push(newUserEmail);
-            localStorage.setItem('authorizedUsers', JSON.stringify(users));
+            db.ref('authorizedUsers').push(newUserEmail);
             alert('Utilisateur ajouté: ' + newUserEmail);
             updateUsersTable();
-            document.getElementById('form-userManagement').reset();
         }
 
         function updateUsersTable() {
             const tableBody = document.querySelector('#table-users tbody');
             tableBody.innerHTML = '';
-            const users = JSON.parse(localStorage.getItem('authorizedUsers')) || [];
-            users.forEach((user, index) => {
-                const row = tableBody.insertRow();
-                row.insertCell(0).textContent = user;
-                const actionsCell = row.insertCell(1);
-                const removeBtn = document.createElement('button');
-                removeBtn.textContent = 'Supprimer';
-                removeBtn.onclick = () => {
-                    users.splice(index, 1);
-                    localStorage.setItem('authorizedUsers', JSON.stringify(users));
-                    updateUsersTable();
-                };
-                actionsCell.appendChild(removeBtn);
+            db.ref('authorizedUsers').once('value', snapshot => {
+                snapshot.forEach(child => {
+                    const user = child.val();
+                    const row = tableBody.insertRow();
+                    row.insertCell(0).textContent = user;
+                    const actionsCell = row.insertCell(1);
+                    const removeBtn = document.createElement('button');
+                    removeBtn.textContent = 'Supprimer';
+                    removeBtn.onclick = () => db.ref('authorizedUsers/' + child.key).remove().then(updateUsersTable);
+                    actionsCell.appendChild(removeBtn);
+                });
             });
         }
 
         function ajouterTache(siteId) {
+            if (!isAuthorized()) return alert('Connectez-vous pour ajouter des tâches.');
             const tache = document.getElementById(`tache-${siteId}`).value;
             const statut = document.getElementById(`statut-${siteId}`).value;
             const date = document.getElementById(`date-${siteId}`).value;
             if (!tache || !statut || !date) return alert('Veuillez remplir tous les champs.');
-            let tasks = JSON.parse(localStorage.getItem(`tasks-${siteId}`)) || [];
-            tasks.push({ tache, statut, date });
-            localStorage.setItem(`tasks-${siteId}`, JSON.stringify(tasks));
+            db.ref(`tasks/${siteId}`).push({ tache, statut, date });
             document.getElementById(`form-${siteId}`).reset();
             alert('Tâche ajoutée !');
             openTab('dashboard'); // Redirection vers dashboard
-            updateDashboard();
         }
 
-        function supprimerTache(siteId, index, statut, tache, date) {
-            let tasks = JSON.parse(localStorage.getItem(`tasks-${siteId}`)) || [];
+        function supprimerTache(siteId, key, tache, statut, date) {
+            if (!isAuthorized()) return alert('Non autorisé.');
             if (statut === 'Terminée') {
-                let completed = JSON.parse(localStorage.getItem('completed-tasks')) || [];
-                completed.push({ tache, site: siteId, date });
-                localStorage.setItem('completed-tasks', JSON.stringify(completed));
+                db.ref('completed-tasks').push({ tache, site: siteId, date });
             }
-            tasks.splice(index, 1);
-            localStorage.setItem(`tasks-${siteId}`, JSON.stringify(tasks));
+            db.ref(`tasks/${siteId}/${key}`).remove();
             alert('Tâche supprimée ou déplacée.');
-            chargerDonnees(siteId);
             updateDashboard();
         }
 
         function chargerDonnees(tabId) {
-            const isCompleted = tabId === 'completed-tasks';
-            const key = isCompleted ? 'completed-tasks' : `tasks-${tabId}`;
-            const tableBody = document.querySelector(isCompleted ? '#table-completed tbody' : `#table-${tabId} tbody`);
+            let refPath = tabId === 'completed-tasks' ? 'completed-tasks' : `tasks/${tabId}`;
+            const tableId = tabId === 'completed-tasks' ? 'table-completed' : `table-${tabId}`;
+            const tableBody = document.querySelector(`#${tableId} tbody`);
             if (!tableBody) return;
-            tableBody.innerHTML = '';
-            const data = JSON.parse(localStorage.getItem(key)) || [];
-            data.forEach((item, index) => {
-                const row = tableBody.insertRow();
-                row.insertCell(0).textContent = item.tache;
-                if (isCompleted) {
-                    row.insertCell(1).textContent = item.site;
-                    row.insertCell(2).textContent = item.date;
-                } else {
-                    row.insertCell(1).textContent = item.statut;
-                    row.insertCell(2).textContent = item.date;
-                    const actionsCell = row.insertCell(3);
-                    const deleteBtn = document.createElement('button');
-                    deleteBtn.textContent = 'Supprimer';
-                    deleteBtn.onclick = () => supprimerTache(tabId, index, item.statut, item.tache, item.date);
-                    actionsCell.appendChild(deleteBtn);
-                }
+            db.ref(refPath).on('value', snapshot => {
+                tableBody.innerHTML = '';
+                snapshot.forEach(child => {
+                    const item = child.val();
+                    const row = tableBody.insertRow();
+                    row.insertCell(0).textContent = item.tache;
+                    if (tabId === 'completed-tasks') {
+                        row.insertCell(1).textContent = item.site;
+                        row.insertCell(2).textContent = item.date;
+                    } else {
+                        row.insertCell(1).textContent = item.statut;
+                        row.insertCell(2).textContent = item.date;
+                        const actionsCell = row.insertCell(3);
+                        const deleteBtn = document.createElement('button');
+                        deleteBtn.textContent = 'Supprimer';
+                        deleteBtn.onclick = () => supprimerTache(tabId, child.key, item.tache, item.statut, item.date);
+                        actionsCell.appendChild(deleteBtn);
+                    }
+                });
             });
+        }
+
+        function chargerTousDonnees() {
+            sites.forEach(site => chargerDonnees(site));
+            chargerDonnees('completed-tasks');
         }
 
         function exporterDonnees(siteId) {
-            const tasks = JSON.parse(localStorage.getItem(`tasks-${siteId}`)) || [];
-            let csv = 'Tâche,Statut,Date\n';
-            tasks.forEach(item => {
-                csv += `${item.tache},${item.statut},${item.date}\n`;
+            db.ref(`tasks/${siteId}`).once('value', snapshot => {
+                let csv = 'Tâche,Statut,Date\n';
+                snapshot.forEach(child => {
+                    const item = child.val();
+                    csv += `${item.tache},${item.statut},${item.date}\n`;
+                });
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = `${siteId}_tasks.csv`;
+                a.click();
             });
-            const blob = new Blob([csv], { type: 'text/csv' });
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = `${siteId}_tasks.csv`;
-            a.click();
         }
 
         function effacerDonnees(siteId) {
-            if (confirm('Êtes-vous sûr ?')) {
-                localStorage.removeItem(`tasks-${siteId}`);
-                chargerDonnees(siteId);
-                updateDashboard();
-            }
+            if (!isAdmin()) return alert('Seul l\'admin peut effacer.');
+            if (confirm('Êtes-vous sûr ?')) db.ref(`tasks/${siteId}`).remove();
         }
 
         function updateDashboard() {
             let enCours = 0, terminees = 0, enAttente = 0;
-            sites.forEach(site => {
-                const tasks = JSON.parse(localStorage.getItem(`tasks-${site}`)) || [];
-                tasks.forEach(task => {
-                    if (task.statut === 'En cours') enCours++;
-                    else if (task.statut === 'Terminée') terminees++;
-                    else if (task.statut === 'En attente') enAttente++;
+            db.ref('tasks').once('value', snapshot => {
+                snapshot.forEach(site => {
+                    site.forEach(task => {
+                        const statut = task.val().statut;
+                        if (statut === 'En cours') enCours++;
+                        else if (statut === 'Terminée') terminees++;
+                        else if (statut === 'En attente') enAttente++;
+                    });
                 });
+                document.getElementById('en-cours').textContent = `Tâches en Cours : ${enCours}`;
+                document.getElementById('terminees').textContent = `Tâches Terminées : ${terminees}`;
+                document.getElementById('en-attente').textContent = `Tâches en Attente : ${enAttente}`;
             });
-            document.getElementById('en-cours').textContent = `Tâches en Cours : ${enCours}`;
-            document.getElementById('terminees').textContent = `Tâches Terminées : ${terminees}`;
-            document.getElementById('en-attente').textContent = `Tâches en Attente : ${enAttente}`;
         }
 
         function generateReports() {
-            const monthly = {};
-            const annual = {};
-            sites.forEach(site => {
-                const tasks = JSON.parse(localStorage.getItem(`tasks-${site}`)) || [];
-                tasks.forEach(task => {
-                    if (!task.date) return; // Skip si date invalide
-                    const taskDate = new Date(task.date);
-                    if (isNaN(taskDate)) return; // Skip date invalide
-                    const monthKey = `${taskDate.getFullYear()}-${taskDate.getMonth() + 1}`;
-                    const yearKey = taskDate.getFullYear().toString();
-                    monthly[monthKey] = monthly[monthKey] || { added: 0, completed: 0, sites: {} };
-                    annual[yearKey] = annual[yearKey] || { added: 0, completed: 0, sites: {} };
-                    monthly[monthKey].added++;
-                    annual[yearKey].added++;
-                    monthly[monthKey].sites[site] = (monthly[monthKey].sites[site] || 0) + 1;
-                    annual[yearKey].sites[site] = (annual[yearKey].sites[site] || 0) + 1;
-                    if (task.statut === 'Terminée') {
-                        monthly[monthKey].completed++;
-                        annual[yearKey].completed++;
-                    }
+            db.ref('tasks').once('value', snapshot => {
+                const monthly = {};
+                const annual = {};
+                snapshot.forEach(siteSnap => {
+                    const site = siteSnap.key;
+                    siteSnap.forEach(taskSnap => {
+                        const { date, statut } = taskSnap.val();
+                        if (!date) return;
+                        const taskDate = new Date(date);
+                        if (isNaN(taskDate)) return;
+                        const monthKey = `${taskDate.getFullYear()}-${taskDate.getMonth() + 1}`;
+                        const yearKey = taskDate.getFullYear();
+                        monthly[monthKey] = monthly[monthKey] || { added: 0, completed: 0, sites: {} };
+                        annual[yearKey] = annual[yearKey] || { added: 0, completed: 0, sites: {} };
+                        monthly[monthKey].added++;
+                        annual[yearKey].added++;
+                        monthly[monthKey].sites[site] = (monthly[monthKey].sites[site] || 0) + 1;
+                        annual[yearKey].sites[site] = (annual[yearKey].sites[site] || 0) + 1;
+                        if (statut === 'Terminée') {
+                            monthly[monthKey].completed++;
+                            annual[yearKey].completed++;
+                        }
+                    });
                 });
+                let monthlyText = '';
+                for (const [key, data] of Object.entries(monthly)) {
+                    monthlyText += `${key}: ${data.added} ajoutées, ${data.completed} terminées (Détails: ${JSON.stringify(data.sites)})\n`;
+                }
+                let annualText = '';
+                for (const [key, data] of Object.entries(annual)) {
+                    annualText += `${key}: ${data.added} ajoutées, ${data.completed} terminées (Détails: ${JSON.stringify(data.sites)})\n`;
+                }
+                document.getElementById('monthly-report').textContent = monthlyText || 'Aucun données mensuelles.';
+                document.getElementById('annual-report').textContent = annualText || 'Aucun données annuelles.';
             });
-
-            let monthlyText = '';
-            Object.entries(monthly).forEach(([key, data]) => {
-                monthlyText += `${key}: ${data.added} ajoutées, ${data.completed} terminées (Détails par site: ${JSON.stringify(data.sites)})\n`;
-            });
-
-            let annualText = '';
-            Object.entries(annual).forEach(([key, data]) => {
-                annualText += `${key}: ${data.added} ajoutées, ${data.completed} terminées (Détails par site: ${JSON.stringify(data.sites)})\n`;
-            });
-
-            document.getElementById('monthly-report').textContent = monthlyText || 'Aucun données mensuelles.';
-            document.getElementById('annual-report').textContent = annualText || 'Aucun données annuelles.';
         }
-
-        // Initialisation
-        sites.forEach(site => chargerDonnees(site));
-        chargerDonnees('completed-tasks');
-        updateUsersTable();
-        updateDashboard();
     </script>
 </body>
 </html>
