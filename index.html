@@ -116,6 +116,7 @@
         <button onclick="openTab('CMDB')">CMDB</button>
         <button onclick="openTab('Manhattan')">Manhattan</button>
         <button onclick="openTab('Residence')">Residence</button>
+        <button onclick="openTab('completed-tasks')">Tâches Terminées</button>
         <button onclick="showReports()">Rapports</button>
     </nav>
     
@@ -289,6 +290,8 @@
                 </thead>
                 <tbody></tbody>
             </table>
+            <button onclick="exporterDonnees('Manhattan')">Exporter en CSV</button>
+            <button type="button" onclick="effacerDonnees('Manhattan')">Effacer Toutes les Données</button>
         </div>
 
         <!-- Residence -->
@@ -316,6 +319,8 @@
                 </thead>
                 <tbody></tbody>
             </table>
+            <button onclick="exporterDonnees('Residence')">Exporter en CSV</button>
+            <button type="button" onclick="effacerDonnees('Residence')">Effacer Toutes les Données</button>
         </div>
 
         <div id="completed-tasks" class="tab-content">
@@ -323,6 +328,7 @@
             <table id="table-completed">
                 <thead>
                     <tr>
+                        <th>Site</th>
                         <th>Tâche</th>
                         <th>Date</th>
                     </tr>
@@ -333,7 +339,7 @@
 
         <div id="reports" class="tab-content">
             <h2>Rapports</h2>
-            <p>Fonctionnalité à implémenter</p>
+            <p>Les résumés de tâches sont générés automatiquement pour chaque site.</p>
         </div>
 
     </main>
@@ -344,21 +350,48 @@
     
     <script>
         const adminEmail = "mkhalife@cmd.cd";
-        const authorizedUsers = []; // Array to store authorized users
+        const authorizedUsers = [];
+        const siteIds = ['CMDG', 'CMDN', 'CMDLT', 'CMDB', 'Manhattan', 'Residence'];
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const storedUsers = JSON.parse(localStorage.getItem('authorizedUsers')) || [];
+            const initialUsers = storedUsers.includes(adminEmail) ? storedUsers : [...storedUsers, adminEmail];
+            authorizedUsers.push(...initialUsers);
+            if (initialUsers.length !== storedUsers.length) {
+                updateAllUsersData();
+            }
+            updateUsersTable();
+            siteIds.forEach(chargerDonnees);
+            updateDashboard();
+            updateCompletedTasks();
+        });
 
         function openTab(tabId) {
-            var tabs = document.querySelectorAll('.tab-content');
-            tabs.forEach(function(tab) { tab.classList.remove('active'); });
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
             document.getElementById(tabId).classList.add('active');
-            chargerDonnees(tabId);
+            if (siteIds.includes(tabId)) {
+                chargerDonnees(tabId);
+            }
+            if (tabId === 'reports') {
+                createReports();
+            }
             updateDashboard();
+            updateCompletedTasks();
         }
 
         function ajouterUtilisateur() {
-            const newUserEmail = document.getElementById('newUserEmail').value;
-            if (!newUserEmail) return;
+            const newUserEmail = document.getElementById('newUserEmail').value.trim();
+            if (!newUserEmail) {
+                alert('Veuillez saisir un email valide.');
+                return;
+            }
+            if (authorizedUsers.includes(newUserEmail)) {
+                alert('Utilisateur déjà ajouté.');
+                return;
+            }
 
             authorizedUsers.push(newUserEmail);
+            localStorage.setItem('authorizedUsers', JSON.stringify(authorizedUsers));
             alert('Utilisateur ajouté: ' + newUserEmail);
             updateUsersTable();
             document.getElementById('form-userManagement').reset();
@@ -382,93 +415,210 @@
             const index = authorizedUsers.indexOf(user);
             if (index > -1) {
                 authorizedUsers.splice(index, 1);
+                localStorage.setItem('authorizedUsers', JSON.stringify(authorizedUsers));
                 updateUsersTable();
                 alert('Utilisateur supprimé: ' + user);
             }
         }
 
+        const storageKey = (siteId) => 'taches-' + siteId;
+
         function ajouterTache(siteId) {
-            var tache = document.getElementById('tache-' + siteId).value;
-            var statut = document.getElementById('statut-' + siteId).value;
-            var date = document.getElementById('date-' + siteId).value;
+            const tache = document.getElementById('tache-' + siteId).value.trim();
+            const statut = document.getElementById('statut-' + siteId).value;
+            const date = document.getElementById('date-' + siteId).value;
 
             if (!tache || !statut || !date) {
                 alert('Veuillez remplir tous les champs.');
                 return;
             }
 
-            var tableBody = document.querySelector('#table-' + siteId + ' tbody');
-            var row = tableBody.insertRow();
-            row.insertCell(0).textContent = tache;
-            row.insertCell(1).textContent = statut;
-            row.insertCell(2).textContent = date;
-
-            var actionsCell = row.insertCell(3);
-            var deleteBtn = document.createElement('button');
-            deleteBtn.textContent = 'Supprimer';
-            deleteBtn.onclick = function() { supprimerTache(this, siteId); };
-            actionsCell.appendChild(deleteBtn);
+            const data = chargerDonneesDepuisStockage(siteId);
+            data.push({ tache, statut, date });
+            sauvegarderDonnees(siteId, data);
 
             alert('Nouvelle tâche ajoutée: ' + tache);
-            sauvegarderDonnees(siteId);
-            updateDashboard();
-
             document.getElementById('form-' + siteId).reset();
         }
 
         function supprimerTache(button, siteId) {
             if (!isAuthorized()) {
-                alert('Vous n\'avez pas l\'autorisation de supprimer des tâches.');
+                alert('Vous n\'avez pas l'autorisation de supprimer des tâches.');
                 return;
             }
 
-            var row = button.parentNode.parentNode;
-            if (row.cells[1].textContent === 'Terminée') {
-                ajouterTacheCompletes(row.cells[0].textContent, row.cells[2].textContent);
+            const row = button.closest('tr');
+            const index = Number(row.dataset.index);
+            const data = chargerDonneesDepuisStockage(siteId);
+
+            if (!Number.isNaN(index) && index >= 0 && index < data.length) {
+                const [removed] = data.splice(index, 1);
+                sauvegarderDonnees(siteId, data);
+                alert('Tâche supprimée: ' + removed.tache);
             }
-            row.parentNode.removeChild(row);
-            alert('Tâche supprimée: ' + row.cells[0].textContent);
-            sauvegarderDonnees(siteId);
-            updateDashboard();
         }
 
-        function ajouterTacheCompletes(tache, date) {
-            var tableBody = document.querySelector('#table-completed tbody');
-            var completedRow = tableBody.insertRow();
-            completedRow.insertCell(0).textContent = tache;
-            completedRow.insertCell(1).textContent = date;
-        }
+        function updateCompletedTasks() {
+            const tableBody = document.querySelector('#table-completed tbody');
+            tableBody.innerHTML = '';
 
-        function sauvegarderDonnees(siteId) {
-            var tableBody = document.querySelector('#table-' + siteId + ' tbody');
-            var data = [];
-            for (var i = 0; i < tableBody.rows.length; i++) {
-                var row = tableBody.rows[i];
-                data.push({
-                    tache: row.cells[0].textContent,
-                    statut: row.cells[1].textContent,
-                    date: row.cells[2].textContent
+            let totalCompleted = 0;
+            siteIds.forEach(site => {
+                const data = chargerDonneesDepuisStockage(site);
+                data.filter(item => item.statut === 'Terminée').forEach(item => {
+                    const completedRow = tableBody.insertRow();
+                    completedRow.insertCell(0).textContent = site;
+                    completedRow.insertCell(1).textContent = item.tache;
+                    completedRow.insertCell(2).textContent = item.date;
+                    totalCompleted += 1;
                 });
+            });
+
+            if (totalCompleted === 0) {
+                const emptyRow = tableBody.insertRow();
+                const emptyCell = emptyRow.insertCell(0);
+                emptyCell.colSpan = 3;
+                emptyCell.textContent = 'Aucune tâche terminée pour le moment.';
             }
-            localStorage.setItem('taches-' + siteId, JSON.stringify(data));
-            updateAllUsersData();
+        }
+
+        function sauvegarderDonnees(siteId, data) {
+            localStorage.setItem(storageKey(siteId), JSON.stringify(data));
+            renderSiteTable(siteId, data);
             createReports();
             updateDashboard();
+            updateCompletedTasks();
         }
 
         function chargerDonnees(siteId) {
-            var data = JSON.parse(localStorage.getItem('taches-' + siteId)) || [];
-            var tableBody = document.querySelector('#table-' + siteId + ' tbody');
+            const data = chargerDonneesDepuisStockage(siteId);
+            renderSiteTable(siteId, data);
+            updateDashboard();
+            updateCompletedTasks();
+        }
+
+        function effacerDonnees(siteId) {
+            if (!confirm('Voulez-vous supprimer toutes les tâches de ' + siteId + ' ?')) {
+                return;
+            }
+            localStorage.removeItem(storageKey(siteId));
+            chargerDonnees(siteId);
+            createReports();
+            updateDashboard();
+            updateCompletedTasks();
+        }
+
+        function exporterDonnees(siteId) {
+            const data = chargerDonneesDepuisStockage(siteId);
+            if (data.length === 0) {
+                alert('Aucune donnée à exporter pour ' + siteId + '.');
+                return;
+            }
+
+            const csvRows = ['Tâche,Statut,Date'];
+            data.forEach(item => {
+                const safeTask = item.tache.replace(/"/g, '""');
+                csvRows.push(`"${safeTask}",${item.statut},${item.date}`);
+            });
+            const csvContent = csvRows.join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = siteId + '-taches.csv';
+            link.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function updateDashboard() {
+            const counts = { 'En cours': 0, 'Terminée': 0, 'En attente': 0 };
+            siteIds.forEach(site => {
+                const data = chargerDonneesDepuisStockage(site);
+                data.forEach(item => {
+                    if (counts[item.statut] !== undefined) {
+                        counts[item.statut] += 1;
+                    }
+                });
+            });
+
+            document.getElementById('en-cours').textContent = 'Tâches en Cours : ' + counts['En cours'];
+            document.getElementById('terminees').textContent = 'Tâches Terminées : ' + counts['Terminée'];
+            document.getElementById('en-attente').textContent = 'Tâches en Attente : ' + counts['En attente'];
+        }
+
+        function createReports() {
+            const reportsContainer = document.getElementById('reports');
+            let summary = document.getElementById('report-summary');
+            if (summary) {
+                summary.remove();
+            }
+            summary = document.createElement('div');
+            summary.id = 'report-summary';
+
+            siteIds.forEach(site => {
+                const data = chargerDonneesDepuisStockage(site);
+                const totals = { 'En cours': 0, 'Terminée': 0, 'En attente': 0 };
+                data.forEach(item => {
+                    if (totals[item.statut] !== undefined) {
+                        totals[item.statut] += 1;
+                    }
+                });
+                const section = document.createElement('div');
+                section.innerHTML = `<h3>${site}</h3>
+                    <p>En cours : ${totals['En cours']}</p>
+                    <p>Terminées : ${totals['Terminée']}</p>
+                    <p>En attente : ${totals['En attente']}</p>`;
+                summary.appendChild(section);
+            });
+
+            reportsContainer.appendChild(summary);
+        }
+
+        function showReports() {
+            openTab('reports');
+            createReports();
+        }
+
+        function chargerDonneesDepuisStockage(siteId) {
+            const data = JSON.parse(localStorage.getItem(storageKey(siteId))) || [];
+            return Array.isArray(data) ? data : [];
+        }
+
+        function renderSiteTable(siteId, data) {
+            const tableBody = document.querySelector('#table-' + siteId + ' tbody');
             tableBody.innerHTML = '';
-            data.forEach(function(item) {
-                var row = tableBody.insertRow();
+
+            if (!data.length) {
+                const emptyRow = tableBody.insertRow();
+                const emptyCell = emptyRow.insertCell(0);
+                emptyCell.colSpan = 4;
+                emptyCell.textContent = 'Aucune tâche enregistrée pour le moment.';
+                emptyRow.dataset.index = -1;
+                return;
+            }
+
+            data.forEach((item, index) => {
+                const row = tableBody.insertRow();
+                row.dataset.index = index;
                 row.insertCell(0).textContent = item.tache;
                 row.insertCell(1).textContent = item.statut;
                 row.insertCell(2).textContent = item.date;
 
-                var actionsCell = row.insertCell(3);
-                var deleteBtn = document.createElement('button');
+                const actionsCell = row.insertCell(3);
+                const deleteBtn = document.createElement('button');
                 deleteBtn.textContent = 'Supprimer';
                 deleteBtn.onclick = function() { supprimerTache(this, siteId); };
                 actionsCell.appendChild(deleteBtn);
             });
+        }
+
+        function updateAllUsersData() {
+            localStorage.setItem('authorizedUsers', JSON.stringify(authorizedUsers));
+        }
+
+        function isAuthorized() {
+            return true;
+        }
+    </script>
+</body>
+</html>
