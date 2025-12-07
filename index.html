@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Maintenance CMDK</title>
+    <link rel="icon" href="data:;base64,iVBORw0KGgo="> <!-- Fix favicon 404 error -->
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #f8f9fa; display: flex; flex-direction: column; min-height: 100vh; }
         header { background-color: #fd7e14; color: white; padding: 10px; text-align: center; position: relative; }
@@ -447,6 +448,27 @@
             let enCours = 0, terminees = 0, enAttente = 0;
             const refPath = `${currentSection}/tasks`;
             db.ref(refPath).once('value', snapshot => {
+                if (!snapshot.exists()) {
+                    // Gère cas sans données
+                    document.getElementById('en-cours').textContent = 'Tâches en Cours : 0';
+                    document.getElementById('terminees').textContent = 'Tâches Terminées : 0';
+                    document.getElementById('en-attente').textContent = 'Tâches en Attente : 0';
+                    if (tasksChart) tasksChart.destroy();
+                    const ctx = canvas.getContext('2d');
+                    tasksChart = new Chart(ctx, {
+                        type: 'pie',
+                        data: {
+                            labels: ['En cours', 'Terminées', 'En attente'],
+                            datasets: [{
+                                data: [0, 0, 0],
+                                backgroundColor: ['#ffc107', '#28a745', '#dc3545'],
+                                borderWidth: 1
+                            }]
+                        },
+                        options: { responsive: true }
+                    });
+                    return;
+                }
                 snapshot.forEach(site => {
                     site.forEach(task => {
                         const statut = task.val().statut;
