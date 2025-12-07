@@ -202,6 +202,8 @@
                 </thead>
                 <tbody></tbody>
             </table>
+            <button onclick="exporterDonnees('CMDN')">Exporter en CSV</button>
+            <button type="button" onclick="effacerDonnees('CMDN')">Effacer Toutes les Données</button>
         </div>
 
         <!-- CMDLT -->
@@ -229,6 +231,8 @@
                 </thead>
                 <tbody></tbody>
             </table>
+            <button onclick="exporterDonnees('CMDLT')">Exporter en CSV</button>
+            <button type="button" onclick="effacerDonnees('CMDLT')">Effacer Toutes les Données</button>
         </div>
 
         <!-- CMDB -->
@@ -256,9 +260,63 @@
                 </thead>
                 <tbody></tbody>
             </table>
+            <button onclick="exporterDonnees('CMDB')">Exporter en CSV</button>
+            <button type="button" onclick="effacerDonnees('CMDB')">Effacer Toutes les Données</button>
         </div>
 
-        <!-- Other tabs (Manhattan, Residence) can be added similarly -->
+        <!-- Manhattan -->
+        <div id="Manhattan" class="tab-content">
+            <h2>Manhattan - Suivi des Tâches</h2>
+            <form id="form-Manhattan">
+                <input type="text" id="tache-Manhattan" placeholder="Description de la tâche" required>
+                <select id="statut-Manhattan" required>
+                    <option value="">Statut</option>
+                    <option value="En cours">En cours</option>
+                    <option value="Terminée">Terminée</option>
+                    <option value="En attente">En attente</option>
+                </select>
+                <input type="date" id="date-Manhattan" required>
+                <button type="button" onclick="ajouterTache('Manhattan')">Ajouter Tâche</button>
+            </form>
+            <table id="table-Manhattan">
+                <thead>
+                    <tr>
+                        <th>Tâche</th>
+                        <th>Statut</th>
+                        <th>Date</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <!-- Residence -->
+        <div id="Residence" class="tab-content">
+            <h2>Residence - Suivi des Tâches</h2>
+            <form id="form-Residence">
+                <input type="text" id="tache-Residence" placeholder="Description de la tâche" required>
+                <select id="statut-Residence" required>
+                    <option value="">Statut</option>
+                    <option value="En cours">En cours</option>
+                    <option value="Terminée">Terminée</option>
+                    <option value="En attente">En attente</option>
+                </select>
+                <input type="date" id="date-Residence" required>
+                <button type="button" onclick="ajouterTache('Residence')">Ajouter Tâche</button>
+            </form>
+            <table id="table-Residence">
+                <thead>
+                    <tr>
+                        <th>Tâche</th>
+                        <th>Statut</th>
+                        <th>Date</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
 
         <div id="completed-tasks" class="tab-content">
             <h2>Tâches Terminées</h2>
@@ -393,6 +451,7 @@
                 });
             }
             localStorage.setItem('taches-' + siteId, JSON.stringify(data));
+            updateAllUsersData();
             createReports();
             updateDashboard();
         }
@@ -413,40 +472,3 @@
                 deleteBtn.onclick = function() { supprimerTache(this, siteId); };
                 actionsCell.appendChild(deleteBtn);
             });
-        }
-
-        function updateDashboard() {
-            // Exemple de mise à jour du tableau de bord
-            document.getElementById('en-cours').textContent = 'Tâches en Cours : ' + document.querySelectorAll('#table-CMDG tbody tr, #table-CMDN tbody tr, #table-CMDLT tbody tr, #table-CMDB tbody tr').length; // Count tasks across all tables
-            document.getElementById('terminees').textContent = 'Tâches Terminées : ' + document.querySelectorAll('#table-completed tbody tr').length; // Completed tasks
-            // Implement other stats as needed
-        }
-
-        function isAuthorized() {
-            return authorizedUsers.includes(adminEmail);
-        }
-
-        function showReports() {
-            alert('Fonctionnalité de rapports à implémenter');
-        }
-
-        function exportDonnees(siteId) {
-            // Implémentation pour exporter les données
-        }
-
-        function effacerDonnees(siteId) {
-            if (!isAuthorized()) {
-                alert('Vous n\'avez pas l\'autorisation d\'effacer toutes les données.');
-                return;
-            }
-            localStorage.removeItem('taches-' + siteId);
-            chargerDonnees(siteId);
-            alert('Données effacées pour ' + siteId);
-        }
-
-        window.onload = function() {
-            openTab('dashboard'); // Démarrer avec l'onglet du tableau de bord
-        };
-    </script>
-</body>
-</html>
