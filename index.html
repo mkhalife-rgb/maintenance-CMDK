@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Maintenance CMDK</title>
     <style>
-        /* Ton CSS original, inchangé pour brevité */
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #f4f4f4; display: flex; flex-direction: column; min-height: 100vh; }
         header { background-color: #007bff; color: white; padding: 10px; text-align: center; }
         nav { background-color: #e9ecef; padding: 10px; display: flex; justify-content: center; flex-wrap: wrap; }
@@ -23,9 +22,10 @@
         button:hover { background-color: #0056b3; }
         #completed-tasks { margin-top: 20px; }
         footer { background-color: #007bff; color: white; text-align: center; padding: 10px; }
+        #error-message { color: red; }
         @media (max-width: 600px) { nav { flex-direction: column; } }
     </style>
-    <!-- Intégration Firebase SDK -->
+    <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth.js"></script>
@@ -45,12 +45,13 @@
         <button onclick="openTab('CMDB')">CMDB</button>
         <button onclick="openTab('Manhattan')">Manhattan</button>
         <button onclick="openTab('Residence')">Residence</button>
-        <button onclick="openTab('reports')">Rapports</button> <!-- Corrigé pour openTab -->
-        <button onclick="logout()">Déconnexion</button> <!-- Bouton de déconnexion -->
+        <button onclick="openTab('reports')">Rapports</button>
+        <button onclick="openTab('completed-tasks')">Tâches Terminées</button>
+        <button onclick="logout()">Déconnexion</button>
     </nav>
     
     <main>
-        <!-- Ajout d'une section de login (visible au démarrage) -->
+        <!-- Login -->
         <div id="login" class="tab-content active">
             <h2>Connexion</h2>
             <form id="form-login">
@@ -60,6 +61,7 @@
                 <button type="button" onclick="register()">S'inscrire</button>
             </form>
             <p id="login-message"></p>
+            <p id="error-message"></p>
         </div>
 
         <!-- Dashboard -->
@@ -80,17 +82,12 @@
                 <button type="button" onclick="ajouterUtilisateur()">Ajouter Utilisateur</button>
             </form>
             <table id="table-users">
-                <thead>
-                    <tr>
-                        <th>Email</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
+                <thead><tr><th>Email</th><th>Actions</th></tr></thead>
                 <tbody></tbody>
             </table>
         </div>
 
-        <!-- CMDG (et les autres tabs similaires, je les omets pour brevité, mais ils sont identiques avec leur ID) -->
+        <!-- CMDG -->
         <div id="CMDG" class="tab-content">
             <h2>CMDG - Suivi des Tâches</h2>
             <form id="form-CMDG">
@@ -105,22 +102,141 @@
                 <button type="button" onclick="ajouterTache('CMDG')">Ajouter Tâche</button>
             </form>
             <table id="table-CMDG">
-                <thead>
-                    <tr>
-                        <th>Tâche</th>
-                        <th>Statut</th>
-                        <th>Date</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
+                <thead><tr><th>Tâche</th><th>Statut</th><th>Date</th><th>Actions</th></tr></thead>
                 <tbody></tbody>
             </table>
             <button onclick="exporterDonnees('CMDG')">Exporter en CSV</button>
             <button type="button" onclick="effacerDonnees('CMDG')">Effacer Toutes les Données</button>
         </div>
 
-        <!-- Ajoute ici les autres div pour CMDN, CMDLT, CMDB, Manhattan, Residence, completed-tasks, reports (comme dans ton code original) -->
+        <!-- CMDN -->
+        <div id="CMDN" class="tab-content">
+            <h2>CMDN - Suivi des Tâches</h2>
+            <form id="form-CMDN">
+                <input type="text" id="tache-CMDN" placeholder="Description de la tâche" required>
+                <select id="statut-CMDN" required>
+                    <option value="">Statut</option>
+                    <option value="En cours">En cours</option>
+                    <option value="Terminée">Terminée</option>
+                    <option value="En attente">En attente</option>
+                </select>
+                <input type="date" id="date-CMDN" required>
+                <button type="button" onclick="ajouterTache('CMDN')">Ajouter Tâche</button>
+            </form>
+            <table id="table-CMDN">
+                <thead><tr><th>Tâche</th><th>Statut</th><th>Date</th><th>Actions</th></tr></thead>
+                <tbody></tbody>
+            </table>
+            <button onclick="exporterDonnees('CMDN')">Exporter en CSV</button>
+            <button type="button" onclick="effacerDonnees('CMDN')">Effacer Toutes les Données</button>
+        </div>
 
+        <!-- CMDLT -->
+        <div id="CMDLT" class="tab-content">
+            <h2>CMDLT - Suivi des Tâches</h2>
+            <form id="form-CMDLT">
+                <input type="text" id="tache-CMDLT" placeholder="Description de la tâche" required>
+                <select id="statut-CMDLT" required>
+                    <option value="">Statut</option>
+                    <option value="En cours">En cours</option>
+                    <option value="Terminée">Terminée</option>
+                    <option value="En attente">En attente</option>
+                </select>
+                <input type="date" id="date-CMDLT" required>
+                <button type="button" onclick="ajouterTache('CMDLT')">Ajouter Tâche</button>
+            </form>
+            <table id="table-CMDLT">
+                <thead><tr><th>Tâche</th><th>Statut</th><th>Date</th><th>Actions</th></tr></thead>
+                <tbody></tbody>
+            </table>
+            <button onclick="exporterDonnees('CMDLT')">Exporter en CSV</button>
+            <button type="button" onclick="effacerDonnees('CMDLT')">Effacer Toutes les Données</button>
+        </div>
+
+        <!-- CMDB -->
+        <div id="CMDB" class="tab-content">
+            <h2>CMDB - Suivi des Tâches</h2>
+            <form id="form-CMDB">
+                <input type="text" id="tache-CMDB" placeholder="Description de la tâche" required>
+                <select id="statut-CMDB" required>
+                    <option value="">Statut</option>
+                    <option value="En cours">En cours</option>
+                    <option value="Terminée">Terminée</option>
+                    <option value="En attente">En attente</option>
+                </select>
+                <input type="date" id="date-CMDB" required>
+                <button type="button" onclick="ajouterTache('CMDB')">Ajouter Tâche</button>
+            </form>
+            <table id="table-CMDB">
+                <thead><tr><th>Tâche</th><th>Statut</th><th>Date</th><th>Actions</th></tr></thead>
+                <tbody></tbody>
+            </table>
+            <button onclick="exporterDonnees('CMDB')">Exporter en CSV</button>
+            <button type="button" onclick="effacerDonnees('CMDB')">Effacer Toutes les Données</button>
+        </div>
+
+        <!-- Manhattan -->
+        <div id="Manhattan" class="tab-content">
+            <h2>Manhattan - Suivi des Tâches</h2>
+            <form id="form-Manhattan">
+                <input type="text" id="tache-Manhattan" placeholder="Description de la tâche" required>
+                <select id="statut-Manhattan" required>
+                    <option value="">Statut</option>
+                    <option value="En cours">En cours</option>
+                    <option value="Terminée">Terminée</option>
+                    <option value="En attente">En attente</option>
+                </select>
+                <input type="date" id="date-Manhattan" required>
+                <button type="button" onclick="ajouterTache('Manhattan')">Ajouter Tâche</button>
+            </form>
+            <table id="table-Manhattan">
+                <thead><tr><th>Tâche</th><th>Statut</th><th>Date</th><th>Actions</th></tr></thead>
+                <tbody></tbody>
+            </table>
+            <button onclick="exporterDonnees('Manhattan')">Exporter en CSV</button>
+            <button type="button" onclick="effacerDonnees('Manhattan')">Effacer Toutes les Données</button>
+        </div>
+
+        <!-- Residence -->
+        <div id="Residence" class="tab-content">
+            <h2>Residence - Suivi des Tâches</h2>
+            <form id="form-Residence">
+                <input type="text" id="tache-Residence" placeholder="Description de la tâche" required>
+                <select id="statut-Residence" required>
+                    <option value="">Statut</option>
+                    <option value="En cours">En cours</option>
+                    <option value="Terminée">Terminée</option>
+                    <option value="En attente">En attente</option>
+                </select>
+                <input type="date" id="date-Residence" required>
+                <button type="button" onclick="ajouterTache('Residence')">Ajouter Tâche</button>
+            </form>
+            <table id="table-Residence">
+                <thead><tr><th>Tâche</th><th>Statut</th><th>Date</th><th>Actions</th></tr></thead>
+                <tbody></tbody>
+            </table>
+            <button onclick="exporterDonnees('Residence')">Exporter en CSV</button>
+            <button type="button" onclick="effacerDonnees('Residence')">Effacer Toutes les Données</button>
+        </div>
+
+        <!-- Completed Tasks -->
+        <div id="completed-tasks" class="tab-content">
+            <h2>Tâches Terminées</h2>
+            <table id="table-completed">
+                <thead><tr><th>Tâche</th><th>Site</th><th>Date</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <!-- Reports -->
+        <div id="reports" class="tab-content">
+            <h2>Rapports</h2>
+            <button onclick="generateReports()">Générer Rapports</button>
+            <h3>Rapport Mensuel</h3>
+            <pre id="monthly-report"></pre>
+            <h3>Rapport Annuel</h3>
+            <pre id="annual-report"></pre>
+        </div>
     </main>
     
     <footer>
@@ -130,67 +246,75 @@
     <script>
         // Remplace par ta config Firebase réelle
         const firebaseConfig = {
-            // Ta config ici...
+            apiKey: "TA_CLE_API",
+            authDomain: "ton-projet.firebaseapp.com",
+            databaseURL: "https://ton-projet-default-rtdb.firebaseio.com",
+            projectId: "ton-projet",
+            storageBucket: "ton-projet.appspot.com",
+            messagingSenderId: "1234567890",
+            appId: "1:1234567890:web:xxxxxxxxxxxxxxxx"
         };
 
-        // Initialiser Firebase
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
         const auth = firebase.auth();
 
         const adminEmail = "mkhalife@cmd.cd";
         let currentUser = null;
+        const sites = ['CMDG', 'CMDN', 'CMDLT', 'CMDB', 'Manhattan', 'Residence'];
 
-        // Fonctions d'auth
+        auth.onAuthStateChanged(user => {
+            currentUser = user;
+            if (user) {
+                openTab('dashboard');
+                chargerTousDonnees();
+                updateDashboard();
+            } else {
+                openTab('login');
+            }
+        });
+
         function login() {
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
             auth.signInWithEmailAndPassword(email, password)
-                .then(user => {
-                    currentUser = user;
-                    document.getElementById('login').style.display = 'none';
-                    openTab('dashboard');
-                    chargerTousDonnees();
-                    document.getElementById('login-message').textContent = 'Connecté !';
-                })
-                .catch(err => document.getElementById('login-message').textContent = 'Erreur: ' + err.message);
+                .then(() => document.getElementById('login-message').textContent = 'Connecté !')
+                .catch(err => document.getElementById('error-message').textContent = 'Erreur: ' + err.message);
         }
 
         function register() {
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
             auth.createUserWithEmailAndPassword(email, password)
-                .then(user => document.getElementById('login-message').textContent = 'Inscrit ! Connecte-toi maintenant.')
-                .catch(err => document.getElementById('login-message').textContent = 'Erreur: ' + err.message);
+                .then(() => document.getElementById('login-message').textContent = 'Inscrit ! Connecte-toi.')
+                .catch(err => document.getElementById('error-message').textContent = 'Erreur: ' + err.message);
         }
 
         function logout() {
-            auth.signOut().then(() => {
-                currentUser = null;
-                openTab('login');
-            });
+            auth.signOut();
         }
 
-        // Vérifie si l'utilisateur est admin
         function isAdmin() {
             return currentUser && currentUser.email === adminEmail;
         }
 
-        // Vérifie si l'utilisateur est autorisé (basé sur Firebase, on peut ajouter une liste d'utilisateurs dans DB)
         function isAuthorized() {
             return !!currentUser;
         }
 
         function openTab(tabId) {
-            if (!isAuthorized() && tabId !== 'login') return openTab('login');
-            var tabs = document.querySelectorAll('.tab-content');
-            tabs.forEach(tab => tab.classList.remove('active'));
-            document.getElementById(tabId).classList.add('active');
-            if (tabId !== 'login') chargerDonnees(tabId);
+            if (!isAuthorized() && tabId !== 'login') {
+                openTab('login');
+                return;
+            }
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            const tab = document.getElementById(tabId);
+            if (tab) tab.classList.add('active');
+            if (sites.includes(tabId) || tabId === 'completed-tasks') chargerDonnees(tabId);
+            if (tabId === 'userManagement') updateUsersTable();
             updateDashboard();
         }
 
-        // Fonction pour ajouter utilisateur (seul admin)
         function ajouterUtilisateur() {
             if (!isAdmin()) return alert('Seul l\'admin peut ajouter des utilisateurs.');
             const newUserEmail = document.getElementById('newUserEmail').value;
@@ -200,11 +324,10 @@
             updateUsersTable();
         }
 
-        // Mise à jour table utilisateurs desde Firebase
         function updateUsersTable() {
+            const tableBody = document.querySelector('#table-users tbody');
+            tableBody.innerHTML = '';
             db.ref('authorizedUsers').once('value', snapshot => {
-                const tableBody = document.querySelector('#table-users tbody');
-                tableBody.innerHTML = '';
                 snapshot.forEach(child => {
                     const user = child.val();
                     const row = tableBody.insertRow();
@@ -212,7 +335,7 @@
                     const actionsCell = row.insertCell(1);
                     const removeBtn = document.createElement('button');
                     removeBtn.textContent = 'Supprimer';
-                    removeBtn.onclick = () => db.ref('authorizedUsers/' + child.key).remove();
+                    removeBtn.onclick = () => db.ref('authorizedUsers/' + child.key).remove().then(updateUsersTable);
                     actionsCell.appendChild(removeBtn);
                 });
             });
@@ -220,48 +343,56 @@
 
         function ajouterTache(siteId) {
             if (!isAuthorized()) return alert('Connectez-vous pour ajouter des tâches.');
-            var tache = document.getElementById(`tache-${siteId}`).value;
-            var statut = document.getElementById(`statut-${siteId}`).value;
-            var date = document.getElementById(`date-${siteId}`).value;
-
+            const tache = document.getElementById(`tache-${siteId}`).value;
+            const statut = document.getElementById(`statut-${siteId}`).value;
+            const date = document.getElementById(`date-${siteId}`).value;
             if (!tache || !statut || !date) return alert('Veuillez remplir tous les champs.');
-
-            // Ajoute à Firebase (sync en temps réel)
             db.ref(`tasks/${siteId}`).push({ tache, statut, date });
-            alert('Nouvelle tâche ajoutée: ' + tache);
             document.getElementById(`form-${siteId}`).reset();
-            updateDashboard();
+            alert('Tâche ajoutée !');
+            openTab('dashboard'); // Redirection vers dashboard
         }
 
-        function supprimerTache(siteId, key) {
-            if (!isAuthorized()) return alert('Vous n\'avez pas l\'autorisation.');
+        function supprimerTache(siteId, key, tache, statut, date) {
+            if (!isAuthorized()) return alert('Non autorisé.');
+            if (statut === 'Terminée') {
+                db.ref('completed-tasks').push({ tache, site: siteId, date });
+            }
             db.ref(`tasks/${siteId}/${key}`).remove();
-            alert('Tâche supprimée');
+            alert('Tâche supprimée ou déplacée.');
             updateDashboard();
         }
 
-        function chargerDonnees(siteId) {
-            const tableBody = document.querySelector(`#table-${siteId} tbody`);
+        function chargerDonnees(tabId) {
+            let refPath = tabId === 'completed-tasks' ? 'completed-tasks' : `tasks/${tabId}`;
+            const tableBody = document.querySelector(`#table-${tabId} tbody`);
+            if (!tableBody) return;
             tableBody.innerHTML = '';
-            db.ref(`tasks/${siteId}`).on('value', snapshot => {  // Écoute en temps réel
+            db.ref(refPath).on('value', snapshot => {
                 tableBody.innerHTML = '';
                 snapshot.forEach(child => {
                     const item = child.val();
                     const row = tableBody.insertRow();
                     row.insertCell(0).textContent = item.tache;
-                    row.insertCell(1).textContent = item.statut;
-                    row.insertCell(2).textContent = item.date;
-                    const actionsCell = row.insertCell(3);
-                    const deleteBtn = document.createElement('button');
-                    deleteBtn.textContent = 'Supprimer';
-                    deleteBtn.onclick = () => supprimerTache(siteId, child.key);
-                    actionsCell.appendChild(deleteBtn);
+                    if (tabId === 'completed-tasks') {
+                        row.insertCell(1).textContent = item.site;
+                        row.insertCell(2).textContent = item.date;
+                    } else {
+                        row.insertCell(1).textContent = item.statut;
+                        row.insertCell(2).textContent = item.date;
+                        const actionsCell = row.insertCell(3);
+                        const deleteBtn = document.createElement('button');
+                        deleteBtn.textContent = 'Supprimer';
+                        deleteBtn.onclick = () => supprimerTache(tabId, child.key, item.tache, item.statut, item.date);
+                        actionsCell.appendChild(deleteBtn);
+                    }
                 });
             });
         }
 
         function chargerTousDonnees() {
-            ['CMDG', 'CMDN', 'CMDLT', 'CMDB', 'Manhattan', 'Residence'].forEach(siteId => chargerDonnees(siteId));
+            sites.forEach(site => chargerDonnees(site));
+            chargerDonnees('completed-tasks');
         }
 
         function exporterDonnees(siteId) {
@@ -272,9 +403,8 @@
                     csv += `${item.tache},${item.statut},${item.date}\n`;
                 });
                 const blob = new Blob([csv], { type: 'text/csv' });
-                const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
-                a.href = url;
+                a.href = URL.createObjectURL(blob);
                 a.download = `${siteId}_tasks.csv`;
                 a.click();
             });
@@ -287,7 +417,6 @@
 
         function updateDashboard() {
             let enCours = 0, terminees = 0, enAttente = 0;
-            // Compte depuis Firebase (exemple pour tous sites, adapte si besoin)
             db.ref('tasks').once('value', snapshot => {
                 snapshot.forEach(site => {
                     site.forEach(task => {
@@ -303,24 +432,47 @@
             });
         }
 
-        // Pour les rapports (exemple basique, tu peux étendre)
-        // Ajoute <div id="reports" class="tab-content"><h2>Rapports</h2><p id="reports-content"></p></div> dans main si pas là
         function generateReports() {
             db.ref('tasks').once('value', snapshot => {
-                let report = 'Rapport global:\n';
-                snapshot.forEach(site => {
-                    report += `${site.key}: ${site.numChildren()} tâches\n`;
+                const monthly = {};
+                const annual = {};
+                snapshot.forEach(siteSnap => {
+                    const site = siteSnap.key;
+                    siteSnap.forEach(taskSnap => {
+                        const { date, statut } = taskSnap.val();
+                        const taskDate = new Date(date);
+                        const monthKey = `${taskDate.getFullYear()}-${taskDate.getMonth() + 1}`;
+                        const yearKey = taskDate.getFullYear();
+                        
+                        monthly[monthKey] = monthly[monthKey] || { added: 0, completed: 0, sites: {} };
+                        annual[yearKey] = annual[yearKey] || { added: 0, completed: 0, sites: {} };
+                        
+                        monthly[monthKey].added++;
+                        annual[yearKey].added++;
+                        monthly[monthKey].sites[site] = (monthly[monthKey].sites[site] || 0) + 1;
+                        annual[yearKey].sites[site] = (annual[yearKey].sites[site] || 0) + 1;
+                        
+                        if (statut === 'Terminée') {
+                            monthly[monthKey].completed++;
+                            annual[yearKey].completed++;
+                        }
+                    });
                 });
-                document.getElementById('reports-content').textContent = report;
+
+                let monthlyText = '';
+                for (const [key, data] of Object.entries(monthly)) {
+                    monthlyText += `${key}: ${data.added} ajoutées, ${data.completed} terminées (Détails: ${JSON.stringify(data.sites)})\n`;
+                }
+
+                let annualText = '';
+                for (const [key, data] of Object.entries(annual)) {
+                    annualText += `${key}: ${data.added} ajoutées, ${data.completed} terminées (Détails: ${JSON.stringify(data.sites)})\n`;
+                }
+
+                document.getElementById('monthly-report').textContent = monthlyText || 'Aucun données mensuelles.';
+                document.getElementById('annual-report').textContent = annualText || 'Aucun données annuelles.';
             });
         }
-
-        // Appel initial
-        auth.onAuthStateChanged(user => {
-            currentUser = user;
-            if (user) openTab('dashboard');
-            else openTab('login');
-        });
     </script>
 </body>
 </html>
