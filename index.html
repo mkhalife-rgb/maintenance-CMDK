@@ -148,7 +148,7 @@
             </table>
         </div>
 
-        <!-- Other sites -->
+        <!-- CMDG -->
         <div id="CMDG" class="tab-content">
             <h2>CMDG - Suivi des Tâches</h2>
             <form id="form-CMDG">
@@ -174,11 +174,91 @@
                 <tbody></tbody>
             </table>
             <button onclick="exporterDonnees('CMDG')">Exporter en CSV</button>
-            <button onclick="effacerDonnees('CMDG')">Effacer Toutes les Données</button>
+            <button type="button" onclick="effacerDonnees('CMDG')">Effacer Toutes les Données</button>
         </div>
 
-        <!-- Repeat for other sites (CMDN, CMDLT, CMDB, Manhattan, Residence) -->
-        <!-- Add here similar to CMDG -->
+        <!-- CMDN -->
+        <div id="CMDN" class="tab-content">
+            <h2>CMDN - Suivi des Tâches</h2>
+            <form id="form-CMDN">
+                <input type="text" id="tache-CMDN" placeholder="Description de la tâche" required>
+                <select id="statut-CMDN" required>
+                    <option value="">Statut</option>
+                    <option value="En cours">En cours</option>
+                    <option value="Terminée">Terminée</option>
+                    <option value="En attente">En attente</option>
+                </select>
+                <input type="date" id="date-CMDN" required>
+                <button type="button" onclick="ajouterTache('CMDN')">Ajouter Tâche</button>
+            </form>
+            <table id="table-CMDN">
+                <thead>
+                    <tr>
+                        <th>Tâche</th>
+                        <th>Statut</th>
+                        <th>Date</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <!-- CMDLT -->
+        <div id="CMDLT" class="tab-content">
+            <h2>CMDLT - Suivi des Tâches</h2>
+            <form id="form-CMDLT">
+                <input type="text" id="tache-CMDLT" placeholder="Description de la tâche" required>
+                <select id="statut-CMDLT" required>
+                    <option value="">Statut</option>
+                    <option value="En cours">En cours</option>
+                    <option value="Terminée">Terminée</option>
+                    <option value="En attente">En attente</option>
+                </select>
+                <input type="date" id="date-CMDLT" required>
+                <button type="button" onclick="ajouterTache('CMDLT')">Ajouter Tâche</button>
+            </form>
+            <table id="table-CMDLT">
+                <thead>
+                    <tr>
+                        <th>Tâche</th>
+                        <th>Statut</th>
+                        <th>Date</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <!-- CMDB -->
+        <div id="CMDB" class="tab-content">
+            <h2>CMDB - Suivi des Tâches</h2>
+            <form id="form-CMDB">
+                <input type="text" id="tache-CMDB" placeholder="Description de la tâche" required>
+                <select id="statut-CMDB" required>
+                    <option value="">Statut</option>
+                    <option value="En cours">En cours</option>
+                    <option value="Terminée">Terminée</option>
+                    <option value="En attente">En attente</option>
+                </select>
+                <input type="date" id="date-CMDB" required>
+                <button type="button" onclick="ajouterTache('CMDB')">Ajouter Tâche</button>
+            </form>
+            <table id="table-CMDB">
+                <thead>
+                    <tr>
+                        <th>Tâche</th>
+                        <th>Statut</th>
+                        <th>Date</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <!-- Other tabs (Manhattan, Residence) can be added similarly -->
 
         <div id="completed-tasks" class="tab-content">
             <h2>Tâches Terminées</h2>
@@ -195,7 +275,7 @@
 
         <div id="reports" class="tab-content">
             <h2>Rapports</h2>
-            <canvas id="chart-container"></canvas>
+            <p>Fonctionnalité à implémenter</p>
         </div>
 
     </main>
@@ -268,7 +348,7 @@
             var actionsCell = row.insertCell(3);
             var deleteBtn = document.createElement('button');
             deleteBtn.textContent = 'Supprimer';
-            deleteBtn.onclick = function() { supprimerTache(this); };
+            deleteBtn.onclick = function() { supprimerTache(this, siteId); };
             actionsCell.appendChild(deleteBtn);
 
             alert('Nouvelle tâche ajoutée: ' + tache);
@@ -278,14 +358,19 @@
             document.getElementById('form-' + siteId).reset();
         }
 
-        function supprimerTache(button) {
+        function supprimerTache(button, siteId) {
+            if (!isAuthorized()) {
+                alert('Vous n\'avez pas l\'autorisation de supprimer des tâches.');
+                return;
+            }
+
             var row = button.parentNode.parentNode;
             if (row.cells[1].textContent === 'Terminée') {
                 ajouterTacheCompletes(row.cells[0].textContent, row.cells[2].textContent);
             }
             row.parentNode.removeChild(row);
             alert('Tâche supprimée: ' + row.cells[0].textContent);
-            sauvegarderDonnees(row.closest('table').id.split('-')[1]);
+            sauvegarderDonnees(siteId);
             updateDashboard();
         }
 
@@ -325,31 +410,43 @@
                 var actionsCell = row.insertCell(3);
                 var deleteBtn = document.createElement('button');
                 deleteBtn.textContent = 'Supprimer';
-                deleteBtn.onclick = function() { supprimerTache(this); };
+                deleteBtn.onclick = function() { supprimerTache(this, siteId); };
                 actionsCell.appendChild(deleteBtn);
             });
         }
 
         function updateDashboard() {
-            // Implementation to update the dashboard with task counts (not shown for brevity)
+            // Exemple de mise à jour du tableau de bord
+            document.getElementById('en-cours').textContent = 'Tâches en Cours : ' + document.querySelectorAll('#table-CMDG tbody tr, #table-CMDN tbody tr, #table-CMDLT tbody tr, #table-CMDB tbody tr').length; // Count tasks across all tables
+            document.getElementById('terminees').textContent = 'Tâches Terminées : ' + document.querySelectorAll('#table-completed tbody tr').length; // Completed tasks
+            // Implement other stats as needed
         }
 
-        function createReports() {
-            // Implementation to create reports (not shown for brevity)
+        function isAuthorized() {
+            return authorizedUsers.includes(adminEmail);
         }
 
-        function exporterDonnees(siteId) {
-            // Implementation to export data (not shown for brevity)
+        function showReports() {
+            alert('Fonctionnalité de rapports à implémenter');
+        }
+
+        function exportDonnees(siteId) {
+            // Implémentation pour exporter les données
         }
 
         function effacerDonnees(siteId) {
-            // Implementation to clear data (not shown for brevity)
+            if (!isAuthorized()) {
+                alert('Vous n\'avez pas l\'autorisation d\'effacer toutes les données.');
+                return;
+            }
+            localStorage.removeItem('taches-' + siteId);
+            chargerDonnees(siteId);
+            alert('Données effacées pour ' + siteId);
         }
-        
+
         window.onload = function() {
-            openTab('dashboard'); // Start with the dashboard tab
+            openTab('dashboard'); // Démarrer avec l'onglet du tableau de bord
         };
     </script>
 </body>
 </html>
-Ajout du fichier index.html avec le code de l'interface
