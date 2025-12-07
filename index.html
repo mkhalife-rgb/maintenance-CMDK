@@ -24,6 +24,7 @@
         footer { background-color: #007bff; color: white; text-align: center; padding: 10px; }
         #error-message { color: red; }
         #tasksChart { max-width: 400px; margin: 20px auto; }
+        .status-select { display: none; }
         @media (max-width: 600px) { nav { flex-direction: column; } }
     </style>
     <!-- Firebase SDK -->
@@ -266,7 +267,7 @@
         const adminEmail = "mkhalife@cmd.cd";
         let currentUser = null;
         const sites = ['CMDG', 'CMDN', 'CMDLT', 'CMDB', 'Manhattan', 'Residence'];
-        let tasksChart = null; // Pour le diagramme
+        let tasksChart = null;
 
         auth.onAuthStateChanged(user => {
             currentUser = user;
@@ -280,19 +281,27 @@
         });
 
         function login() {
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            auth.signInWithEmailAndPassword(email, password)
-                .then(() => document.getElementById('login-message').textContent = 'Connecté !')
-                .catch(err => document.getElementById('error-message').textContent = 'Erreur: ' + err.message);
+            try {
+                const email = document.getElementById('email').value;
+                const password = document.getElementById('password').value;
+                auth.signInWithEmailAndPassword(email, password)
+                    .then(() => document.getElementById('login-message').textContent = 'Connecté !')
+                    .catch(err => document.getElementById('error-message').textContent = 'Erreur: ' + err.message);
+            } catch (e) {
+                document.getElementById('error-message').textContent = 'Erreur de connexion: ' + e.message;
+            }
         }
 
         function register() {
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            auth.createUserWithEmailAndPassword(email, password)
-                .then(() => document.getElementById('login-message').textContent = 'Inscrit ! Connecte-toi.')
-                .catch(err => document.getElementById('error-message').textContent = 'Erreur: ' + err.message);
+            try {
+                const email = document.getElementById('email').value;
+                const password = document.getElementById('password').value;
+                auth.createUserWithEmailAndPassword(email, password)
+                    .then(() => document.getElementById('login-message').textContent = 'Inscrit ! Connecte-toi.')
+                    .catch(err => document.getElementById('error-message').textContent = 'Erreur: ' + err.message);
+            } catch (e) {
+                document.getElementById('error-message').textContent = 'Erreur d\'inscription: ' + e.message;
+            }
         }
 
         function logout() {
@@ -358,18 +367,35 @@
             openTab('dashboard');
         }
 
-        function modifierStatut(siteId, key, currentStatut, tache, date) {
-            const newStatut = prompt('Choisissez le nouveau statut:', currentStatut, ['En cours', 'Terminée', 'En attente']);
-            if (!newStatut || newStatut === currentStatut) return;
-            db.ref(`tasks/${siteId}/${key}`).update({ statut: newStatut });
-            if (newStatut === 'Terminée') {
-                db.ref('completed-tasks').push({ tache, site: siteId, date });
-                db.ref(`tasks/${siteId}/${key}`).remove();
-                alert('Tâche mise à "Terminée" et déplacée.');
-            } else {
-                alert('Statut mis à jour.');
-            }
-            updateDashboard();
+        function showStatusSelect(siteId, key, statutCell, currentStatut, tache, date) {
+            const select = document.createElement('select');
+            ['En cours', 'Terminée', 'En attente'].forEach(opt => {
+                const option = document.createElement('option');
+                option.value = opt;
+                option.textContent = opt;
+                option.selected = opt === currentStatut;
+                select.appendChild(option);
+            });
+            const saveBtn = document.createElement('button');
+            saveBtn.textContent = 'Sauvegarder';
+            saveBtn.onclick = () => {
+                const newStatut = select.value;
+                if (newStatut !== currentStatut) {
+                    db.ref(`tasks/${siteId}/${key}`).update({ statut: newStatut });
+                    if (newStatut === 'Terminée') {
+                        db.ref('completed-tasks').push({ tache, site: siteId, date });
+                        db.ref(`tasks/${siteId}/${key}`).remove();
+                        alert('Tâche mise à "Terminée" et déplacée.');
+                    } else {
+                        alert('Statut mis à jour.');
+                    }
+                    updateDashboard();
+                }
+                statutCell.innerHTML = newStatut; // Mise à jour visuelle immédiate
+            };
+            statutCell.innerHTML = '';
+            statutCell.appendChild(select);
+            statutCell.appendChild(saveBtn);
         }
 
         function supprimerTache(siteId, key, tache, statut, date) {
@@ -397,12 +423,13 @@
                         row.insertCell(1).textContent = item.site;
                         row.insertCell(2).textContent = item.date;
                     } else {
-                        row.insertCell(1).textContent = item.statut;
+                        const statutCell = row.insertCell(1);
+                        statutCell.textContent = item.statut;
                         row.insertCell(2).textContent = item.date;
                         const actionsCell = row.insertCell(3);
                         const editBtn = document.createElement('button');
                         editBtn.textContent = 'Modifier Statut';
-                        editBtn.onclick = () => modifierStatut(tabId, child.key, item.statut, item.tache, item.date);
+                        editBtn.onclick = () => showStatusSelect(tabId, child.key, statutCell, item.statut, item.tache, item.date);
                         actionsCell.appendChild(editBtn);
                         const deleteBtn = document.createElement('button');
                         deleteBtn.textContent = 'Supprimer';
@@ -410,7 +437,7 @@
                         actionsCell.appendChild(deleteBtn);
                     }
                 });
-                updateDashboard(); // Mise à jour dashboard après chargement
+                updateDashboard();
             });
         }
 
@@ -420,18 +447,22 @@
         }
 
         function exporterDonnees(siteId) {
-            db.ref(`tasks/${siteId}`).once('value', snapshot => {
-                let csv = 'Tâche,Statut,Date\n';
-                snapshot.forEach(child => {
-                    const item = child.val();
-                    csv += `${item.tache},${item.statut},${item.date}\n`;
+            try {
+                db.ref(`tasks/${siteId}`).once('value', snapshot => {
+                    let csv = 'Tâche,Statut,Date\n';
+                    snapshot.forEach(child => {
+                        const item = child.val();
+                        csv += `${item.tache},${item.statut},${item.date}\n`;
+                    });
+                    const blob = new Blob([csv], { type: 'text/csv' });
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = `${siteId}_tasks.csv`;
+                    a.click();
                 });
-                const blob = new Blob([csv], { type: 'text/csv' });
-                const a = document.createElement('a');
-                a.href = URL.createObjectURL(blob);
-                a.download = `${siteId}_tasks.csv`;
-                a.click();
-            });
+            } catch (e) {
+                alert('Erreur d\'export: ' + e.message);
+            }
         }
 
         function effacerDonnees(siteId) {
@@ -440,6 +471,9 @@
         }
 
         function updateDashboard() {
+            const canvas = document.getElementById('tasksChart');
+            if (!canvas || !document.getElementById('dashboard').classList.contains('active')) return; // Ne met à jour que si dashboard visible
+
             let enCours = 0, terminees = 0, enAttente = 0;
             db.ref('tasks').once('value', snapshot => {
                 snapshot.forEach(site => {
@@ -455,8 +489,8 @@
                 document.getElementById('en-attente').textContent = `Tâches en Attente : ${enAttente}`;
 
                 // Mise à jour du diagramme
-                const ctx = document.getElementById('tasksChart').getContext('2d');
-                if (tasksChart) tasksChart.destroy(); // Détruire l'ancien chart
+                if (tasksChart) tasksChart.destroy();
+                const ctx = canvas.getContext('2d');
                 tasksChart = new Chart(ctx, {
                     type: 'pie',
                     data: {
@@ -476,45 +510,49 @@
                         }
                     }
                 });
-            });
+            }).catch(err => console.error('Erreur updateDashboard:', err));
         }
 
         function generateReports() {
-            db.ref('tasks').once('value', snapshot => {
-                const monthly = {};
-                const annual = {};
-                snapshot.forEach(siteSnap => {
-                    const site = siteSnap.key;
-                    siteSnap.forEach(taskSnap => {
-                        const { date, statut } = taskSnap.val();
-                        if (!date) return;
-                        const taskDate = new Date(date);
-                        if (isNaN(taskDate)) return;
-                        const monthKey = `${taskDate.getFullYear()}-${taskDate.getMonth() + 1}`;
-                        const yearKey = taskDate.getFullYear();
-                        monthly[monthKey] = monthly[monthKey] || { added: 0, completed: 0, sites: {} };
-                        annual[yearKey] = annual[yearKey] || { added: 0, completed: 0, sites: {} };
-                        monthly[monthKey].added++;
-                        annual[yearKey].added++;
-                        monthly[monthKey].sites[site] = (monthly[monthKey].sites[site] || 0) + 1;
-                        annual[yearKey].sites[site] = (annual[yearKey].sites[site] || 0) + 1;
-                        if (statut === 'Terminée') {
-                            monthly[monthKey].completed++;
-                            annual[yearKey].completed++;
-                        }
+            try {
+                db.ref('tasks').once('value', snapshot => {
+                    const monthly = {};
+                    const annual = {};
+                    snapshot.forEach(siteSnap => {
+                        const site = siteSnap.key;
+                        siteSnap.forEach(taskSnap => {
+                            const { date, statut } = taskSnap.val();
+                            if (!date) return;
+                            const taskDate = new Date(date);
+                            if (isNaN(taskDate)) return;
+                            const monthKey = `${taskDate.getFullYear()}-${taskDate.getMonth() + 1}`;
+                            const yearKey = taskDate.getFullYear();
+                            monthly[monthKey] = monthly[monthKey] || { added: 0, completed: 0, sites: {} };
+                            annual[yearKey] = annual[yearKey] || { added: 0, completed: 0, sites: {} };
+                            monthly[monthKey].added++;
+                            annual[yearKey].added++;
+                            monthly[monthKey].sites[site] = (monthly[monthKey].sites[site] || 0) + 1;
+                            annual[yearKey].sites[site] = (annual[yearKey].sites[site] || 0) + 1;
+                            if (statut === 'Terminée') {
+                                monthly[monthKey].completed++;
+                                annual[yearKey].completed++;
+                            }
+                        });
                     });
+                    let monthlyText = '';
+                    for (const [key, data] of Object.entries(monthly)) {
+                        monthlyText += `${key}: ${data.added} ajoutées, ${data.completed} terminées (Détails: ${JSON.stringify(data.sites)})\n`;
+                    }
+                    let annualText = '';
+                    for (const [key, data] of Object.entries(annual)) {
+                        annualText += `${key}: ${data.added} ajoutées, ${data.completed} terminées (Détails: ${JSON.stringify(data.sites)})\n`;
+                    }
+                    document.getElementById('monthly-report').textContent = monthlyText || 'Aucun données mensuelles.';
+                    document.getElementById('annual-report').textContent = annualText || 'Aucun données annuelles.';
                 });
-                let monthlyText = '';
-                for (const [key, data] of Object.entries(monthly)) {
-                    monthlyText += `${key}: ${data.added} ajoutées, ${data.completed} terminées (Détails: ${JSON.stringify(data.sites)})\n`;
-                }
-                let annualText = '';
-                for (const [key, data] of Object.entries(annual)) {
-                    annualText += `${key}: ${data.added} ajoutées, ${data.completed} terminées (Détails: ${JSON.stringify(data.sites)})\n`;
-                }
-                document.getElementById('monthly-report').textContent = monthlyText || 'Aucun données mensuelles.';
-                document.getElementById('annual-report').textContent = annualText || 'Aucun données annuelles.';
-            });
+            } catch (e) {
+                alert('Erreur de génération de rapports: ' + e.message);
+            }
         }
     </script>
 </body>
