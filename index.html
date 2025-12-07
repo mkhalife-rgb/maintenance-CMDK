@@ -23,12 +23,15 @@
         #completed-tasks { margin-top: 20px; }
         footer { background-color: #007bff; color: white; text-align: center; padding: 10px; }
         #error-message { color: red; }
+        #tasksChart { max-width: 400px; margin: 20px auto; }
         @media (max-width: 600px) { nav { flex-direction: column; } }
     </style>
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth.js"></script>
+    <!-- Chart.js pour diagrammes -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <header>
@@ -72,6 +75,7 @@
                 <div class="stat" id="terminees">Tâches Terminées : 0</div>
                 <div class="stat" id="en-attente">Tâches en Attente : 0</div>
             </div>
+            <canvas id="tasksChart"></canvas>
         </div>
 
         <!-- User Management -->
@@ -244,7 +248,7 @@
     </footer>
     
     <script>
-        // Remplace par ta config Firebase réelle (obligatoire pour le partage)
+        // Remplace par ta config Firebase réelle
         const firebaseConfig = {
             apiKey: "TA_CLE_API",
             authDomain: "ton-projet.firebaseapp.com",
@@ -262,6 +266,7 @@
         const adminEmail = "mkhalife@cmd.cd";
         let currentUser = null;
         const sites = ['CMDG', 'CMDN', 'CMDLT', 'CMDB', 'Manhattan', 'Residence'];
+        let tasksChart = null; // Pour le diagramme
 
         auth.onAuthStateChanged(user => {
             currentUser = user;
@@ -350,7 +355,21 @@
             db.ref(`tasks/${siteId}`).push({ tache, statut, date });
             document.getElementById(`form-${siteId}`).reset();
             alert('Tâche ajoutée !');
-            openTab('dashboard'); // Redirection vers dashboard
+            openTab('dashboard');
+        }
+
+        function modifierStatut(siteId, key, currentStatut, tache, date) {
+            const newStatut = prompt('Choisissez le nouveau statut:', currentStatut, ['En cours', 'Terminée', 'En attente']);
+            if (!newStatut || newStatut === currentStatut) return;
+            db.ref(`tasks/${siteId}/${key}`).update({ statut: newStatut });
+            if (newStatut === 'Terminée') {
+                db.ref('completed-tasks').push({ tache, site: siteId, date });
+                db.ref(`tasks/${siteId}/${key}`).remove();
+                alert('Tâche mise à "Terminée" et déplacée.');
+            } else {
+                alert('Statut mis à jour.');
+            }
+            updateDashboard();
         }
 
         function supprimerTache(siteId, key, tache, statut, date) {
@@ -381,12 +400,17 @@
                         row.insertCell(1).textContent = item.statut;
                         row.insertCell(2).textContent = item.date;
                         const actionsCell = row.insertCell(3);
+                        const editBtn = document.createElement('button');
+                        editBtn.textContent = 'Modifier Statut';
+                        editBtn.onclick = () => modifierStatut(tabId, child.key, item.statut, item.tache, item.date);
+                        actionsCell.appendChild(editBtn);
                         const deleteBtn = document.createElement('button');
                         deleteBtn.textContent = 'Supprimer';
                         deleteBtn.onclick = () => supprimerTache(tabId, child.key, item.tache, item.statut, item.date);
                         actionsCell.appendChild(deleteBtn);
                     }
                 });
+                updateDashboard(); // Mise à jour dashboard après chargement
             });
         }
 
@@ -429,6 +453,29 @@
                 document.getElementById('en-cours').textContent = `Tâches en Cours : ${enCours}`;
                 document.getElementById('terminees').textContent = `Tâches Terminées : ${terminees}`;
                 document.getElementById('en-attente').textContent = `Tâches en Attente : ${enAttente}`;
+
+                // Mise à jour du diagramme
+                const ctx = document.getElementById('tasksChart').getContext('2d');
+                if (tasksChart) tasksChart.destroy(); // Détruire l'ancien chart
+                tasksChart = new Chart(ctx, {
+                    type: 'pie',
+                    data: {
+                        labels: ['En cours', 'Terminées', 'En attente'],
+                        datasets: [{
+                            data: [enCours, terminees, enAttente],
+                            backgroundColor: ['#ffc107', '#28a745', '#dc3545'],
+                            borderColor: ['#fff', '#fff', '#fff'],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: { position: 'top' },
+                            title: { display: true, text: 'Répartition des Tâches' }
+                        }
+                    }
+                });
             });
         }
 
