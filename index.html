@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Maintenance CMDK (Version Locale)</title>
+    <title>Maintenance CMDK</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #f4f4f4; display: flex; flex-direction: column; min-height: 100vh; }
         header { background-color: #007bff; color: white; padding: 10px; text-align: center; }
@@ -24,19 +24,25 @@
         footer { background-color: #007bff; color: white; text-align: center; padding: 10px; }
         #error-message { color: red; }
         #tasksChart { max-width: 400px; margin: 20px auto; }
+        .status-select { display: none; }
         @media (max-width: 600px) { nav { flex-direction: column; } }
     </style>
+    <!-- Firebase SDK (versions compatibles pour éviter erreurs de modules) -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
     <!-- Chart.js pour diagrammes -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <header>
         <h1>Maintenance CMDK</h1>
-        <h2>Suivi des tâches de la maintenance CMDK (Version Locale)</h2>
+        <h2>Suivi des tâches de la maintenance CMDK</h2>
     </header>
     
     <nav>
         <button onclick="openTab('dashboard')">Tableau de Bord</button>
+        <button onclick="openTab('userManagement')">Gestion des Utilisateurs</button>
         <button onclick="openTab('CMDG')">CMDG</button>
         <button onclick="openTab('CMDN')">CMDN</button>
         <button onclick="openTab('CMDLT')">CMDLT</button>
@@ -45,11 +51,25 @@
         <button onclick="openTab('Residence')">Residence</button>
         <button onclick="openTab('reports')">Rapports</button>
         <button onclick="openTab('completed-tasks')">Tâches Terminées</button>
+        <button onclick="logout()">Déconnexion</button>
     </nav>
     
     <main>
+        <!-- Login -->
+        <div id="login" class="tab-content active">
+            <h2>Connexion</h2>
+            <form id="form-login">
+                <input type="email" id="email" placeholder="Email" required>
+                <input type="password" id="password" placeholder="Mot de passe" required>
+                <button type="button" onclick="login()">Se connecter</button>
+                <button type="button" onclick="register()">S'inscrire</button>
+            </form>
+            <p id="login-message"></p>
+            <p id="error-message"></p>
+        </div>
+
         <!-- Dashboard -->
-        <div id="dashboard" class="tab-content active">
+        <div id="dashboard" class="tab-content">
             <h2>Tableau de Bord</h2>
             <div class="stats">
                 <div class="stat" id="en-cours">Tâches en Cours : 0</div>
@@ -57,6 +77,19 @@
                 <div class="stat" id="en-attente">Tâches en Attente : 0</div>
             </div>
             <canvas id="tasksChart"></canvas>
+        </div>
+
+        <!-- User Management -->
+        <div id="userManagement" class="tab-content">
+            <h2>Gestion des Utilisateurs</h2>
+            <form id="form-userManagement">
+                <input type="email" id="newUserEmail" placeholder="Entrez l'email de l'utilisateur" required>
+                <button type="button" onclick="ajouterUtilisateur()">Ajouter Utilisateur</button>
+            </form>
+            <table id="table-users">
+                <thead><tr><th>Email</th><th>Actions</th></tr></thead>
+                <tbody></tbody>
+            </table>
         </div>
 
         <!-- CMDG -->
@@ -212,37 +245,132 @@
     </main>
     
     <footer>
-        <p>Application créée par Grok - xAI. Données stockées localement (pas de partage).</p>
+        <p>Application créée par Grok 4 - xAI. Données synchronisées via Firebase.</p>
     </footer>
     
     <script>
+        // ***** CONFIG FIREBASE BASÉE SUR TON JSON (déduite pour Web) *****
+        // Si des erreurs persistent (ex: auth), ajoute une app WEB dans Firebase et remplace cet objet par le vrai.
+        // Voir instructions précédentes pour obtenir la config complète.
+        const firebaseConfig = {
+            apiKey: "AIzaSyCINxUOpfRmBesyEbGNg6IjevSGWacoUqE",
+            authDomain: "maintenance-cmdk-6613a.firebaseapp.com",  // Déduit (standard pour les projets Firebase)
+            databaseURL: "https://maintenance-cmdk-6613a-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "maintenance-cmdk-6613a",
+            storageBucket: "maintenance-cmdk-6613a.firebasestorage.app",
+            messagingSenderId: "113245925666",
+            appId: "1:113245925666:web:placeholder"  // Remplace par le vrai appId d'une app Web (ajoute-la dans Firebase)
+        };
+
+        // Initialisation de Firebase (ne change pas ça)
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        const auth = firebase.auth();
+
+        const adminEmail = "mkhalife@cmd.cd";
+        let currentUser = null;
         const sites = ['CMDG', 'CMDN', 'CMDLT', 'CMDB', 'Manhattan', 'Residence'];
         let tasksChart = null;
 
+        auth.onAuthStateChanged(user => {
+            currentUser = user;
+            if (user) {
+                openTab('dashboard');
+                chargerTousDonnees();
+                updateDashboard();
+            } else {
+                openTab('login');
+            }
+        });
+
+        function login() {
+            try {
+                const email = document.getElementById('email').value;
+                const password = document.getElementById('password').value;
+                auth.signInWithEmailAndPassword(email, password)
+                    .then(() => document.getElementById('login-message').textContent = 'Connecté !')
+                    .catch(err => document.getElementById('error-message').textContent = 'Erreur: ' + err.message);
+            } catch (e) {
+                document.getElementById('error-message').textContent = 'Erreur de connexion: ' + e.message;
+            }
+        }
+
+        function register() {
+            try {
+                const email = document.getElementById('email').value;
+                const password = document.getElementById('password').value;
+                auth.createUserWithEmailAndPassword(email, password)
+                    .then(() => document.getElementById('login-message').textContent = 'Inscrit ! Connecte-toi.')
+                    .catch(err => document.getElementById('error-message').textContent = 'Erreur: ' + err.message);
+            } catch (e) {
+                document.getElementById('error-message').textContent = 'Erreur d\'inscription: ' + e.message;
+            }
+        }
+
+        function logout() {
+            auth.signOut();
+        }
+
+        function isAdmin() {
+            return currentUser && currentUser.email === adminEmail;
+        }
+
+        function isAuthorized() {
+            return !!currentUser;
+        }
+
         function openTab(tabId) {
+            if (!isAuthorized() && tabId !== 'login') {
+                openTab('login');
+                return;
+            }
             document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
             const tab = document.getElementById(tabId);
             if (tab) tab.classList.add('active');
             if (sites.includes(tabId) || tabId === 'completed-tasks') chargerDonnees(tabId);
+            if (tabId === 'userManagement') updateUsersTable();
             updateDashboard();
         }
 
+        function ajouterUtilisateur() {
+            if (!isAdmin()) return alert('Seul l\'admin peut ajouter des utilisateurs.');
+            const newUserEmail = document.getElementById('newUserEmail').value;
+            if (!newUserEmail) return;
+            db.ref('authorizedUsers').push(newUserEmail);
+            alert('Utilisateur ajouté: ' + newUserEmail);
+            updateUsersTable();
+        }
+
+        function updateUsersTable() {
+            const tableBody = document.querySelector('#table-users tbody');
+            tableBody.innerHTML = '';
+            db.ref('authorizedUsers').once('value', snapshot => {
+                snapshot.forEach(child => {
+                    const user = child.val();
+                    const row = tableBody.insertRow();
+                    row.insertCell(0).textContent = user;
+                    const actionsCell = row.insertCell(1);
+                    const removeBtn = document.createElement('button');
+                    removeBtn.textContent = 'Supprimer';
+                    removeBtn.onclick = () => db.ref('authorizedUsers/' + child.key).remove().then(updateUsersTable);
+                    actionsCell.appendChild(removeBtn);
+                });
+            });
+        }
+
         function ajouterTache(siteId) {
+            if (!isAuthorized()) return alert('Connectez-vous pour ajouter des tâches.');
             const tache = document.getElementById(`tache-${siteId}`).value;
             const statut = document.getElementById(`statut-${siteId}`).value;
             const date = document.getElementById(`date-${siteId}`).value;
             if (!tache || !statut || !date) return alert('Veuillez remplir tous les champs.');
-            let tasks = JSON.parse(localStorage.getItem(`tasks-${siteId}`)) || [];
-            tasks.push({ tache, statut, date });
-            localStorage.setItem(`tasks-${siteId}`, JSON.stringify(tasks));
+            db.ref(`tasks/${siteId}`).push({ tache, statut, date });
             document.getElementById(`form-${siteId}`).reset();
             alert('Tâche ajoutée !');
-            openTab('dashboard'); // Redirection
-            chargerDonnees(siteId);
-            updateDashboard();
+            openTab('dashboard');
         }
 
-        function showStatusSelect(siteId, index, statutCell, currentStatut, tache, date) {
+        function showStatusSelect(siteId, key, statutCell, currentStatut, tache, date) {
             const select = document.createElement('select');
             ['En cours', 'Terminée', 'En attente'].forEach(opt => {
                 const option = document.createElement('option');
@@ -256,110 +384,114 @@
             saveBtn.onclick = () => {
                 const newStatut = select.value;
                 if (newStatut !== currentStatut) {
-                    let tasks = JSON.parse(localStorage.getItem(`tasks-${siteId}`)) || [];
-                    tasks[index].statut = newStatut;
-                    localStorage.setItem(`tasks-${siteId}`, JSON.stringify(tasks));
+                    db.ref(`tasks/${siteId}/${key}`).update({ statut: newStatut });
                     if (newStatut === 'Terminée') {
-                        let completed = JSON.parse(localStorage.getItem('completed-tasks')) || [];
-                        completed.push({ tache, site: siteId, date });
-                        localStorage.setItem('completed-tasks', JSON.stringify(completed));
-                        tasks.splice(index, 1);
-                        localStorage.setItem(`tasks-${siteId}`, JSON.stringify(tasks));
+                        db.ref('completed-tasks').push({ tache, site: siteId, date });
+                        db.ref(`tasks/${siteId}/${key}`).remove();
                         alert('Tâche mise à "Terminée" et déplacée.');
                     } else {
                         alert('Statut mis à jour.');
                     }
-                    chargerDonnees(siteId);
                     updateDashboard();
                 }
-                statutCell.innerHTML = newStatut;
+                statutCell.innerHTML = newStatut; // Mise à jour visuelle immédiate
             };
             statutCell.innerHTML = '';
             statutCell.appendChild(select);
             statutCell.appendChild(saveBtn);
         }
 
-        function supprimerTache(siteId, index, statut, tache, date) {
-            let tasks = JSON.parse(localStorage.getItem(`tasks-${siteId}`)) || [];
+        function supprimerTache(siteId, key, tache, statut, date) {
+            if (!isAuthorized()) return alert('Non autorisé.');
             if (statut === 'Terminée') {
-                let completed = JSON.parse(localStorage.getItem('completed-tasks')) || [];
-                completed.push({ tache, site: siteId, date });
-                localStorage.setItem('completed-tasks', JSON.stringify(completed));
+                db.ref('completed-tasks').push({ tache, site: siteId, date });
             }
-            tasks.splice(index, 1);
-            localStorage.setItem(`tasks-${siteId}`, JSON.stringify(tasks));
+            db.ref(`tasks/${siteId}/${key}`).remove();
             alert('Tâche supprimée ou déplacée.');
-            chargerDonnees(siteId);
             updateDashboard();
         }
 
         function chargerDonnees(tabId) {
-            const isCompleted = tabId === 'completed-tasks';
-            const key = isCompleted ? 'completed-tasks' : `tasks-${tabId}`;
-            const tableBody = document.querySelector(isCompleted ? '#table-completed tbody' : `#table-${tabId} tbody`);
+            let refPath = tabId === 'completed-tasks' ? 'completed-tasks' : `tasks/${tabId}`;
+            const tableId = tabId === 'completed-tasks' ? 'table-completed' : `table-${tabId}`;
+            const tableBody = document.querySelector(`#${tableId} tbody`);
             if (!tableBody) return;
-            tableBody.innerHTML = '';
-            const data = JSON.parse(localStorage.getItem(key)) || [];
-            data.forEach((item, index) => {
-                const row = tableBody.insertRow();
-                row.insertCell(0).textContent = item.tache;
-                if (isCompleted) {
-                    row.insertCell(1).textContent = item.site;
-                    row.insertCell(2).textContent = item.date;
-                } else {
-                    const statutCell = row.insertCell(1);
-                    statutCell.textContent = item.statut;
-                    row.insertCell(2).textContent = item.date;
-                    const actionsCell = row.insertCell(3);
-                    const editBtn = document.createElement('button');
-                    editBtn.textContent = 'Modifier Statut';
-                    editBtn.onclick = () => showStatusSelect(tabId, index, statutCell, item.statut, item.tache, item.date);
-                    actionsCell.appendChild(editBtn);
-                    const deleteBtn = document.createElement('button');
-                    deleteBtn.textContent = 'Supprimer';
-                    deleteBtn.onclick = () => supprimerTache(tabId, index, item.statut, item.tache, item.date);
-                    actionsCell.appendChild(deleteBtn);
-                }
+            db.ref(refPath).on('value', snapshot => {
+                tableBody.innerHTML = '';
+                snapshot.forEach(child => {
+                    const item = child.val();
+                    const row = tableBody.insertRow();
+                    row.insertCell(0).textContent = item.tache;
+                    if (tabId === 'completed-tasks') {
+                        row.insertCell(1).textContent = item.site;
+                        row.insertCell(2).textContent = item.date;
+                    } else {
+                        const statutCell = row.insertCell(1);
+                        statutCell.textContent = item.statut;
+                        row.insertCell(2).textContent = item.date;
+                        const actionsCell = row.insertCell(3);
+                        const editBtn = document.createElement('button');
+                        editBtn.textContent = 'Modifier Statut';
+                        editBtn.onclick = () => showStatusSelect(tabId, child.key, statutCell, item.statut, item.tache, item.date);
+                        actionsCell.appendChild(editBtn);
+                        const deleteBtn = document.createElement('button');
+                        deleteBtn.textContent = 'Supprimer';
+                        deleteBtn.onclick = () => supprimerTache(tabId, child.key, item.tache, item.statut, item.date);
+                        actionsCell.appendChild(deleteBtn);
+                    }
+                });
+                updateDashboard();
             });
+        }
+
+        function chargerTousDonnees() {
+            sites.forEach(site => chargerDonnees(site));
+            chargerDonnees('completed-tasks');
         }
 
         function exporterDonnees(siteId) {
-            const tasks = JSON.parse(localStorage.getItem(`tasks-${siteId}`)) || [];
-            let csv = 'Tâche,Statut,Date\n';
-            tasks.forEach(item => {
-                csv += `${item.tache},${item.statut},${item.date}\n`;
-            });
-            const blob = new Blob([csv], { type: 'text/csv' });
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = `${siteId}_tasks.csv`;
-            a.click();
-        }
-
-        function effacerDonnees(siteId) {
-            if (confirm('Êtes-vous sûr ?')) {
-                localStorage.removeItem(`tasks-${siteId}`);
-                chargerDonnees(siteId);
-                updateDashboard();
+            try {
+                db.ref(`tasks/${siteId}`).once('value', snapshot => {
+                    let csv = 'Tâche,Statut,Date\n';
+                    snapshot.forEach(child => {
+                        const item = child.val();
+                        csv += `${item.tache},${item.statut},${item.date}\n`;
+                    });
+                    const blob = new Blob([csv], { type: 'text/csv' });
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = `${siteId}_tasks.csv`;
+                    a.click();
+                });
+            } catch (e) {
+                alert('Erreur d\'export: ' + e.message);
             }
         }
 
-        function updateDashboard() {
-            let enCours = 0, terminees = 0, enAttente = 0;
-            sites.forEach(site => {
-                const tasks = JSON.parse(localStorage.getItem(`tasks-${site}`)) || [];
-                tasks.forEach(task => {
-                    if (task.statut === 'En cours') enCours++;
-                    else if (task.statut === 'Terminée') terminees++;
-                    else if (task.statut === 'En attente') enAttente++;
-                });
-            });
-            document.getElementById('en-cours').textContent = `Tâches en Cours : ${enCours}`;
-            document.getElementById('terminees').textContent = `Tâches Terminées : ${terminees}`;
-            document.getElementById('en-attente').textContent = `Tâches en Attente : ${enAttente}`;
+        function effacerDonnees(siteId) {
+            if (!isAdmin()) return alert('Seul l\'admin peut effacer.');
+            if (confirm('Êtes-vous sûr ?')) db.ref(`tasks/${siteId}`).remove();
+        }
 
+        function updateDashboard() {
             const canvas = document.getElementById('tasksChart');
-            if (canvas) {
+            if (!canvas || !document.getElementById('dashboard').classList.contains('active')) return; // Ne met à jour que si dashboard visible
+
+            let enCours = 0, terminees = 0, enAttente = 0;
+            db.ref('tasks').once('value', snapshot => {
+                snapshot.forEach(site => {
+                    site.forEach(task => {
+                        const statut = task.val().statut;
+                        if (statut === 'En cours') enCours++;
+                        else if (statut === 'Terminée') terminees++;
+                        else if (statut === 'En attente') enAttente++;
+                    });
+                });
+                document.getElementById('en-cours').textContent = `Tâches en Cours : ${enCours}`;
+                document.getElementById('terminees').textContent = `Tâches Terminées : ${terminees}`;
+                document.getElementById('en-attente').textContent = `Tâches en Attente : ${enAttente}`;
+
+                // Mise à jour du diagramme
                 if (tasksChart) tasksChart.destroy();
                 const ctx = canvas.getContext('2d');
                 tasksChart = new Chart(ctx, {
@@ -381,51 +513,50 @@
                         }
                     }
                 });
-            }
+            }).catch(err => console.error('Erreur updateDashboard:', err));
         }
 
         function generateReports() {
-            const monthly = {};
-            const annual = {};
-            sites.forEach(site => {
-                const tasks = JSON.parse(localStorage.getItem(`tasks-${site}`)) || [];
-                tasks.forEach(task => {
-                    if (!task.date) return;
-                    const taskDate = new Date(task.date);
-                    if (isNaN(taskDate)) return;
-                    const monthKey = `${taskDate.getFullYear()}-${taskDate.getMonth() + 1}`;
-                    const yearKey = taskDate.getFullYear().toString();
-                    monthly[monthKey] = monthly[monthKey] || { added: 0, completed: 0, sites: {} };
-                    annual[yearKey] = annual[yearKey] || { added: 0, completed: 0, sites: {} };
-                    monthly[monthKey].added++;
-                    annual[yearKey].added++;
-                    monthly[monthKey].sites[site] = (monthly[monthKey].sites[site] || 0) + 1;
-                    annual[yearKey].sites[site] = (annual[yearKey].sites[site] || 0) + 1;
-                    if (task.statut === 'Terminée') {
-                        monthly[monthKey].completed++;
-                        annual[yearKey].completed++;
+            try {
+                db.ref('tasks').once('value', snapshot => {
+                    const monthly = {};
+                    const annual = {};
+                    snapshot.forEach(siteSnap => {
+                        const site = siteSnap.key;
+                        siteSnap.forEach(taskSnap => {
+                            const { date, statut } = taskSnap.val();
+                            if (!date) return;
+                            const taskDate = new Date(date);
+                            if (isNaN(taskDate)) return;
+                            const monthKey = `${taskDate.getFullYear()}-${taskDate.getMonth() + 1}`;
+                            const yearKey = taskDate.getFullYear();
+                            monthly[monthKey] = monthly[monthKey] || { added: 0, completed: 0, sites: {} };
+                            annual[yearKey] = annual[yearKey] || { added: 0, completed: 0, sites: {} };
+                            monthly[monthKey].added++;
+                            annual[yearKey].added++;
+                            monthly[monthKey].sites[site] = (monthly[monthKey].sites[site] || 0) + 1;
+                            annual[yearKey].sites[site] = (annual[yearKey].sites[site] || 0) + 1;
+                            if (statut === 'Terminée') {
+                                monthly[monthKey].completed++;
+                                annual[yearKey].completed++;
+                            }
+                        });
+                    });
+                    let monthlyText = '';
+                    for (const [key, data] of Object.entries(monthly)) {
+                        monthlyText += `${key}: ${data.added} ajoutées, ${data.completed} terminées (Détails: ${JSON.stringify(data.sites)})\n`;
                     }
+                    let annualText = '';
+                    for (const [key, data] of Object.entries(annual)) {
+                        annualText += `${key}: ${data.added} ajoutées, ${data.completed} terminées (Détails: ${JSON.stringify(data.sites)})\n`;
+                    }
+                    document.getElementById('monthly-report').textContent = monthlyText || 'Aucun données mensuelles.';
+                    document.getElementById('annual-report').textContent = annualText || 'Aucun données annuelles.';
                 });
-            });
-
-            let monthlyText = '';
-            Object.entries(monthly).forEach(([key, data]) => {
-                monthlyText += `${key}: ${data.added} ajoutées, ${data.completed} terminées (Détails par site: ${JSON.stringify(data.sites)})\n`;
-            });
-
-            let annualText = '';
-            Object.entries(annual).forEach(([key, data]) => {
-                annualText += `${key}: ${data.added} ajoutées, ${data.completed} terminées (Détails par site: ${JSON.stringify(data.sites)})\n`;
-            });
-
-            document.getElementById('monthly-report').textContent = monthlyText || 'Aucun données mensuelles.';
-            document.getElementById('annual-report').textContent = annualText || 'Aucun données annuelles.';
+            } catch (e) {
+                alert('Erreur de génération de rapports: ' + e.message);
+            }
         }
-
-        // Initialisation
-        sites.forEach(site => chargerDonnees(site));
-        chargerDonnees('completed-tasks');
-        updateDashboard();
     </script>
 </body>
 </html>
