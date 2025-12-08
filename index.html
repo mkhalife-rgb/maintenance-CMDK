@@ -71,6 +71,7 @@
         let currentSection = 'maintenance';
         let tasksChart = null;
         const maintenanceSites = ['CMDG', 'CMDN', 'CMDLT', 'CMDB', 'Manhattan', 'Residence'];
+        const allSections = ['maintenance', 'it', 'biomed']; // Pour rapports séparés
 
         auth.onAuthStateChanged(user => {
             currentUser = user;
@@ -88,10 +89,13 @@
                 return;
             }
             currentSection = value;
+            loadInterface(); // Recharger complètement l'interface pour éviter problèmes DOM
             loadButtonsForSection();
-            openTab('dashboard');
-            chargerTousDonnees();
-            console.log('Changed to section:', currentSection); // Debug: Vérifie le changement
+            setTimeout(() => {
+                openTab('dashboard');
+                chargerTousDonnees();
+            }, 100); // Délai pour s'assurer que DOM est prêt
+            console.log('Changed to section:', currentSection); // Debug
         }
 
         function loadLogin() {
@@ -120,7 +124,7 @@
             auth.signInWithEmailAndPassword(email, password)
                 .then(() => {
                     const messageElement = document.getElementById('login-message');
-                    if (messageElement) messageElement.textContent = 'Connecté !'; // Mise à jour avant de charger l'interface
+                    if (messageElement) messageElement.textContent = 'Connecté !';
                     loadInterface();
                 })
                 .catch(err => {
@@ -177,10 +181,21 @@
                 <div id="reports" class="tab-content">
                     <h2>Rapports</h2>
                     <button onclick="generateReports()">Générer Rapports</button>
-                    <h3>Rapport Mensuel</h3>
-                    <pre id="monthly-report"></pre>
-                    <h3>Rapport Annuel</h3>
-                    <pre id="annual-report"></pre>
+                    <h3>Rapport Maintenance</h3>
+                    <h4>Mensuel</h4>
+                    <pre id="monthly-report-maintenance"></pre>
+                    <h4>Annuel</h4>
+                    <pre id="annual-report-maintenance"></pre>
+                    <h3>Rapport IT</h3>
+                    <h4>Mensuel</h4>
+                    <pre id="monthly-report-it"></pre>
+                    <h4>Annuel</h4>
+                    <pre id="annual-report-it"></pre>
+                    <h3>Rapport Biomed</h3>
+                    <h4>Mensuel</h4>
+                    <pre id="monthly-report-biomed"></pre>
+                    <h4>Annuel</h4>
+                    <pre id="annual-report-biomed"></pre>
                 </div>
                 <div id="completed-tasks" class="tab-content">
                     <h2>Tâches Terminées</h2>
@@ -223,6 +238,7 @@
                         <button onclick="exporterDonnees('tasks')">Exporter en CSV</button>
                     </div>
                 `;
+                console.log('Tasks tab created for non-maintenance section'); // Debug
             } else {
                 maintenanceSites.forEach(site => {
                     main.innerHTML += `
@@ -258,9 +274,7 @@
                 });
             }
             loadButtonsForSection();
-            chargerTousDonnees();
-            openTab('dashboard');
-            console.log('Interface loaded for section:', currentSection); // Debug: Vérifie le chargement
+            console.log('Interface loaded for section:', currentSection); // Debug
         }
 
         function loadButtonsForSection() {
@@ -278,7 +292,8 @@
                 btn.textContent = 'Tâches à Suivre';
                 btn.onclick = () => {
                     openTab('tasks');
-                    chargerDonnees('tasks'); // Force le chargement pour IT/Biomed
+                    chargerDonnees('tasks'); // Force chargement
+                    console.log('Button clicked for tasks tab in', currentSection); // Debug
                 };
                 nav.appendChild(btn);
             } else {
@@ -296,12 +311,12 @@
             const tab = document.getElementById(tabId);
             if (tab) {
                 tab.classList.add('active');
+                console.log('Tab opened:', tabId); // Debug
+            } else {
+                console.error('Tab not found:', tabId); // Debug
             }
             if (tabId === 'userManagement') updateUsersTable();
-            if (maintenanceSites.includes(tabId) || tabId === 'tasks' || tabId === 'completed-tasks') {
-                chargerDonnees(tabId);
-                console.log('Opening tab:', tabId); // Debug: Vérifie l'ouverture
-            }
+            if (maintenanceSites.includes(tabId) || tabId === 'tasks' || tabId === 'completed-tasks') chargerDonnees(tabId);
             if (tabId === 'dashboard') updateDashboard();
         }
 
@@ -345,9 +360,9 @@
             const tache = document.getElementById(`tache-${siteId}`).value;
             const statut = document.getElementById(`statut-${siteId}`).value;
             const date = document.getElementById(`date-${siteId}`).value;
-            const responsable = document.getElementById(`responsable-${siteId}`).value || ''; // Vide si non rempli
+            const responsable = document.getElementById(`responsable-${siteId}`).value || '';
             const criticite = document.getElementById(`criticite-${siteId}`).value;
-            if (!tache || !statut || !date || !criticite) return alert('Veuillez remplir les champs obligatoires (tâche, statut, date, criticité).');
+            if (!tache || !statut || !date || !criticite) return alert('Veuillez remplir les champs obligatoires.');
             const refPath = currentSection === 'maintenance' ? `${currentSection}/tasks/${siteId}` : `${currentSection}/tasks`;
             db.ref(refPath).push({ tache, statut, date, responsable, criticite });
             document.getElementById(`form-${siteId}`).reset();
@@ -355,7 +370,7 @@
             openTab('dashboard');
         }
 
-        function showEditForm(siteId, key, row, item) {
+function showEditForm(siteId, key, row, item) {
             const tacheCell = row.cells[0];
             const statutCell = row.cells[1];
             const dateCell = row.cells[2];
@@ -363,7 +378,6 @@
             const critCell = row.cells[4];
             const actionsCell = row.cells[5];
 
-            // Inputs pour édition
             const tacheInput = document.createElement('input');
             tacheInput.type = 'text';
             tacheInput.value = item.tache;
@@ -404,7 +418,6 @@
             critCell.innerHTML = '';
             critCell.appendChild(critSelect);
 
-            // Bouton Sauvegarder
             actionsCell.innerHTML = '';
             const saveBtn = document.createElement('button');
             saveBtn.textContent = 'Sauvegarder';
@@ -413,7 +426,7 @@
                     tache: tacheInput.value,
                     statut: statutSelect.value,
                     date: dateInput.value,
-                    responsable: respInput.value || '', // Vide permis
+                    responsable: respInput.value || '',
                     criticite: critSelect.value
                 };
                 const refPath = currentSection === 'maintenance' ? `${currentSection}/tasks/${siteId}/${key}` : `${currentSection}/tasks/${key}`;
@@ -446,7 +459,7 @@
             const tableId = tabId === 'completed-tasks' ? 'table-completed' : `table-${tabId}`;
             const tableBody = document.querySelector(`#${tableId} tbody`);
             if (!tableBody) {
-                console.error('Table body not found for:', tableId); // Debug: Si table manquante
+                console.error('Table body not found for:', tableId); // Debug
                 return;
             }
             db.ref(refPath).on('value', snapshot => {
@@ -461,7 +474,6 @@
                 }
                 snapshot.forEach(child => {
                     const item = child.val();
-                    // Valeurs par défaut pour rétrocompatibilité
                     item.responsable = item.responsable || 'Non assigné';
                     item.criticite = item.criticite || 3;
                     const row = tableBody.insertRow();
@@ -482,7 +494,7 @@
                         actionsCell.appendChild(deleteBtn);
                     }
                 });
-                console.log('Data loaded for tab:', tabId); // Debug: Vérifie le chargement des données
+                console.log('Data loaded for tab:', tabId, 'in section:', currentSection); // Debug
             });
         }
 
@@ -526,7 +538,6 @@
             const refPath = `${currentSection}/tasks`;
             db.ref(refPath).once('value', snapshot => {
                 if (!snapshot.exists()) {
-                    // Gère cas sans données
                     document.getElementById('en-cours').textContent = 'Tâches en Cours : 0';
                     document.getElementById('terminees').textContent = 'Tâches Terminées : 0';
                     document.getElementById('en-attente').textContent = 'Tâches en Attente : 0';
@@ -534,14 +545,7 @@
                     const ctx = canvas.getContext('2d');
                     tasksChart = new Chart(ctx, {
                         type: 'pie',
-                        data: {
-                            labels: ['En cours', 'Terminées', 'En attente'],
-                            datasets: [{
-                                data: [0, 0, 0],
-                                backgroundColor: ['#ffc107', '#28a745', '#dc3545'],
-                                borderWidth: 1
-                            }]
-                        },
+                        data: { labels: ['En cours', 'Terminées', 'En attente'], datasets: [{ data: [0, 0, 0], backgroundColor: ['#ffc107', '#28a745', '#dc3545'], borderWidth: 1 }] },
                         options: { responsive: true }
                     });
                     return;
@@ -557,59 +561,51 @@
                 document.getElementById('en-cours').textContent = `Tâches en Cours : ${enCours}`;
                 document.getElementById('terminees').textContent = `Tâches Terminées : ${terminees}`;
                 document.getElementById('en-attente').textContent = `Tâches en Attente : ${enAttente}`;
-
                 if (tasksChart) tasksChart.destroy();
                 const ctx = canvas.getContext('2d');
                 tasksChart = new Chart(ctx, {
                     type: 'pie',
-                    data: {
-                        labels: ['En cours', 'Terminées', 'En attente'],
-                        datasets: [{
-                            data: [enCours, terminees, enAttente],
-                            backgroundColor: ['#ffc107', '#28a745', '#dc3545'],
-                            borderWidth: 1
-                        }]
-                    },
-                    options: {
-                        responsive: true
-                    }
+                    data: { labels: ['En cours', 'Terminées', 'En attente'], datasets: [{ data: [enCours, terminees, enAttente], backgroundColor: ['#ffc107', '#28a745', '#dc3545'], borderWidth: 1 }] },
+                    options: { responsive: true }
                 });
             });
         }
 
         function generateReports() {
-            const refPath = `${currentSection}/tasks`;
-            db.ref(refPath).once('value', snapshot => {
-                const monthly = {};
-                const annual = {};
-                snapshot.forEach(siteSnap => {
-                    siteSnap.forEach(taskSnap => {
-                        const { date, statut } = taskSnap.val();
-                        if (!date) return;
-                        const taskDate = new Date(date);
-                        if (isNaN(taskDate)) return;
-                        const monthKey = `${taskDate.getFullYear()}-${taskDate.getMonth() + 1}`;
-                        const yearKey = taskDate.getFullYear();
-                        monthly[monthKey] = monthly[monthKey] || { added: 0, completed: 0 };
-                        annual[yearKey] = annual[yearKey] || { added: 0, completed: 0 };
-                        monthly[monthKey].added++;
-                        annual[yearKey].added++;
-                        if (statut === 'Terminée') {
-                            monthly[monthKey].completed++;
-                            annual[yearKey].completed++;
-                        }
+            allSections.forEach(section => {
+                const refPath = `${section}/tasks`;
+                db.ref(refPath).once('value', snapshot => {
+                    const monthly = {};
+                    const annual = {};
+                    snapshot.forEach(siteSnap => {
+                        siteSnap.forEach(taskSnap => {
+                            const { date, statut } = taskSnap.val();
+                            if (!date) return;
+                            const taskDate = new Date(date);
+                            if (isNaN(taskDate)) return;
+                            const monthKey = `${taskDate.getFullYear()}-${taskDate.getMonth() + 1}`;
+                            const yearKey = taskDate.getFullYear();
+                            monthly[monthKey] = monthly[monthKey] || { added: 0, completed: 0 };
+                            annual[yearKey] = annual[yearKey] || { added: 0, completed: 0 };
+                            monthly[monthKey].added++;
+                            annual[yearKey].added++;
+                            if (statut === 'Terminée') {
+                                monthly[monthKey].completed++;
+                                annual[yearKey].completed++;
+                            }
+                        });
                     });
+                    let monthlyText = '';
+                    for (const [key, data] of Object.entries(monthly)) {
+                        monthlyText += `${key}: ${data.added} ajoutées, ${data.completed} terminées\n`;
+                    }
+                    let annualText = '';
+                    for (const [key, data] of Object.entries(annual)) {
+                        annualText += `${key}: ${data.added} ajoutées, ${data.completed} terminées\n`;
+                    }
+                    document.getElementById(`monthly-report-${section}`).textContent = monthlyText || 'Aucune donnée mensuelle.';
+                    document.getElementById(`annual-report-${section}`).textContent = annualText || 'Aucune donnée annuelle.';
                 });
-                let monthlyText = '';
-                for (const [key, data] of Object.entries(monthly)) {
-                    monthlyText += `${key}: ${data.added} ajoutées, ${data.completed} terminées\n`;
-                }
-                let annualText = '';
-                for (const [key, data] of Object.entries(annual)) {
-                    annualText += `${key}: ${data.added} ajoutées, ${data.completed} terminées\n`;
-                }
-                document.getElementById('monthly-report').textContent = monthlyText || 'Aucune donnée mensuelle.';
-                document.getElementById('annual-report').textContent = annualText || 'Aucune donnée annuelle.';
             });
         }
 
