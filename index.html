@@ -51,7 +51,7 @@
     
     <main id="main-content"></main>
     
-    <img id="logo" src="logo.png" alt="Eastern Medical ISO 9001:2015 Certifié"> <!-- Logo ajouté ici -->
+    <img id="logo" src="data:image/png;base64,iVBORw0KGgo=" alt="Eastern Medical ISO 9001:2015 Certifié"> <!-- Placeholder temporaire pour éviter 404 (remplace par src="logo.png" après upload) -->
     
     <script>
         const firebaseConfig = {
@@ -152,7 +152,7 @@
             auth.signOut().then(() => loadLogin());
         }
 
-function loadInterface() {
+        function loadInterface() {
             const main = document.getElementById('main-content');
             main.innerHTML = '';
             // Tabs communs
