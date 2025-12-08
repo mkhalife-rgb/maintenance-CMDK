@@ -86,18 +86,25 @@
     </div>  
     
     <script>  
+        // Remplace par TES clés Firebase réelles !  
         const firebaseConfig = {  
-            apiKey: "AIzaSyBoQtCgGc2l7Myvig91dJ_rP9Bn0wZxgLU",  
-            authDomain: "maintenance-cmdk-6613a.firebaseapp.com",  
-            databaseURL: "https://maintenance-cmdk-6613a-default-rtdb.europe-west1.firebasedatabase.app",  
-            projectId: "maintenance-cmdk-6613a",  
-            storageBucket: "maintenance-cmdk-6613a.firebasestorage.app",  
-            messagingSenderId: "113245925666",  
-            appId: "1:113245925666:web:be055abeb157e90e74357b",  
-            measurementId: "G-R5GYPC5SMZ"  
+            apiKey: "AIzaSyBoQtCgGc2l7Myvig91dJ_rP9Bn0wZxgLU", // Remplace par ta clé  
+            authDomain: "maintenance-cmdk-6613a.firebaseapp.com", // Remplace  
+            databaseURL: "https://maintenance-cmdk-6613a-default-rtdb.europe-west1.firebasedatabase.app", // Remplace  
+            projectId: "maintenance-cmdk-6613a", // Remplace  
+            storageBucket: "maintenance-cmdk-6613a.firebasestorage.app", // Remplace  
+            messagingSenderId: "113245925666", // Remplace  
+            appId: "1:113245925666:web:be055abeb157e90e74357b", // Remplace  
+            measurementId: "G-R5GYPC5SMZ" // Remplace  
         };  
 
-        firebase.initializeApp(firebaseConfig);  
+        try {  
+            firebase.initializeApp(firebaseConfig);  
+            console.log('Firebase initialisé avec succès');  
+        } catch (err) {  
+            console.error('Erreur Firebase init:', err);  
+            alert('Erreur de configuration Firebase: ' + err.message + '. Vérifiez vos clés.');  
+        }  
         const db = firebase.database();  
         const auth = firebase.auth();  
 
@@ -202,8 +209,9 @@
 
         function loadInterface() {  
             const main = document.getElementById('main-content');  
+            if (!main) return console.error('Main content not found');  
             main.innerHTML = '';  
-            // Tabs communs (sans audit-logs)  
+            // Tabs communs  
             main.innerHTML += `  
                 <div id="dashboard" class="tab-content">  
                     <h2>Tableau de Bord</h2>  
@@ -316,9 +324,7 @@
                 if (newSectionSelect) {  
                     newSectionSelect.onchange = function() {  
                         const newSite = document.getElementById('new-site');  
-                        if (newSite) {  
-                            newSite.style.display = this.value === 'maintenance' ? 'block' : 'none';  
-                        }  
+                        if (newSite) newSite.style.display = this.value === 'maintenance' ? 'block' : 'none';  
                     };  
                 }  
             } else if (currentSection === 'preventive') {  
@@ -450,12 +456,14 @@
             if (currentSection === 'preventive') openTab('preventive-tab');  
             else openTab('dashboard');  
             checkAdminAndShowElements();  
+            console.log('Interface chargée pour section:', currentSection);  
         }  
 
         function loadButtonsForSection() {  
             const nav = document.getElementById('nav-bar');  
+            if (!nav) return console.error('Nav bar not found');  
             nav.innerHTML = '';  
-            const commonTabs = ['dashboard', 'userManagement', 'reports', 'completed-tasks']; // Sans audit-logs  
+            const commonTabs = ['dashboard', 'userManagement', 'reports', 'completed-tasks'];  
             commonTabs.forEach(tabId => {  
                 const btn = document.createElement('button');  
                 btn.textContent = tabId.charAt(0).toUpperCase() + tabId.slice(1).replace('-', ' ');  
@@ -494,10 +502,12 @@
             document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));  
             const tab = document.getElementById(tabId);  
             if (tab) tab.classList.add('active');  
+            else console.error('Tab not found:', tabId);  
             if (tabId === 'userManagement') updateUsersTable();  
             if (maintenanceSites.includes(tabId) || tabId === 'tasks' || tabId === 'completed-tasks') chargerDonnees(tabId);  
             if (tabId === 'dashboard') updateDashboard();  
             if (tabId === 'planning-tab') loadPlanning();  
+            console.log('Ouvert tab:', tabId);  
         }  
 
         function isAdmin() {  
@@ -631,7 +641,7 @@
             let refPath = tabId === 'completed-tasks' ? `${currentSection}/completed-tasks` : (currentSection === 'maintenance' ? `${currentSection}/tasks/${tabId}` : `${currentSection}/tasks`);  
             const tableId = tabId === 'completed-tasks' ? 'table-completed' : `table-${tabId}`;  
             const tableBody = document.querySelector(`#${tableId} tbody`);  
-            if (!tableBody) return;  
+            if (!tableBody) return console.error('Table body not found for:', tableId);  
             db.ref(refPath).on('value', snapshot => {  
                 tableBody.innerHTML = '';  
                 if (!snapshot.exists()) {  
@@ -1203,7 +1213,7 @@
             body.innerHTML = '';  
             db.ref(`preventive/tasks/${selectedDept}/${selectedTaskKey}/annualPlans/${selectedYear}`).once('value', snapshot => {  
                 let planning = snapshot.val() || months.map(() => ({ responsible: selectedTask.responsable, comments: '', validated: false, statut: 'En attente' }));  
-                const dueMonths = calculateDueMonths(new Date(), selectedTask.frequence, selectedYear); // Date actuelle comme fallback  
+                const dueMonths = calculateDueMonths(new Date(), selectedTask.frequence, selectedYear);  
                 months.forEach((month, index) => {  
                     if (dueMonthsFilter && !dueMonths.includes(index)) return;  
                     const row = body.insertRow();  
@@ -1234,9 +1244,7 @@
                         if (checkbox.checked && confirm('Valider ce mois ? Cela mettra le statut à Terminé.')) {  
                             planning[index].validated = true;  
                             planning[index].statut = 'Terminé';  
-                            // Marquer checklist comme checked si elle existe  
                             if (selectedTask.checklist) selectedTask.checklist.forEach(item => item.checked = true);  
-                            // Update status select  
                             const statusSelect = row.cells[4].querySelector('select');  
                             statusSelect.value = 'Terminé';  
                             statusSelect.disabled = true;  
@@ -1340,5 +1348,4 @@
             });  
             doc.save(`${selectedTask.tache}_annual_${selectedYear}.pdf`);  
         }  
-
-        //
+    </script
