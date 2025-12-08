@@ -158,7 +158,7 @@
             auth.signOut().then(() => loadLogin());
         }
 
-function loadInterface() {
+        function loadInterface() {
             const main = document.getElementById('main-content');
             main.innerHTML = '';
             // Tabs communs pour toutes les sections
@@ -232,7 +232,7 @@ function loadInterface() {
                                 </select>
                                 <input type="date" id="new-date-debut" placeholder="Date début" required>
                                 <input type="date" id="new-date-butoir" placeholder="Date butoir" required>
-                                <input type="text" id="new-responsable" value="${document.getElementById('prestataire-select') ? document.getElementById('prestataire-select').value : ''}" readonly>
+                                <input type="text" id="new-responsable" readonly>
                                 <select id="new-criticite" required>
                                     <option value="">Criticité (1-5)</option>
                                     <option value="1">1 (Faible)</option>
@@ -263,9 +263,15 @@ function loadInterface() {
                 `;
                 loadPrestataires();
                 checkAdminAndShowElements();
-                document.getElementById('new-section').onchange = function() {
-                    document.getElementById('new-site').style.display = this.value === 'maintenance' ? 'block' : 'none';
-                };
+                const newSectionSelect = document.getElementById('new-section');
+                if (newSectionSelect) {
+                    newSectionSelect.onchange = function() {
+                        const newSite = document.getElementById('new-site');
+                        if (newSite) {
+                            newSite.style.display = this.value === 'maintenance' ? 'block' : 'none';
+                        }
+                    };
+                }
             } else if (currentSection !== 'maintenance') {
                 main.innerHTML += `
                     <div id="tasks" class="tab-content">
@@ -334,7 +340,7 @@ function loadInterface() {
                 });
             }
             loadButtonsForSection();
-            chargerTousDonnees();
+            if (currentSection !== 'planning') chargerTousDonnees();
             openTab('dashboard');
             console.log('Interface loaded for section:', currentSection);
         }
@@ -432,7 +438,8 @@ function loadInterface() {
             if (!tache || !statut || !date || !criticite) return alert('Veuillez remplir les champs obligatoires (tâche, statut, date début, criticité).');
             const refPath = currentSection === 'maintenance' ? `${currentSection}/tasks/${siteId}` : `${currentSection}/tasks`;
             db.ref(refPath).push({ tache, statut, date, dateButoir, responsable, criticite });
-            document.getElementById(`form-${siteId}`).reset();
+            const form = document.getElementById(`form-${siteId}`);
+            if (form) form.reset();
             alert('Tâche ajoutée !');
             openTab('dashboard');
         }
@@ -484,8 +491,9 @@ function loadInterface() {
                 } else {
                     alert('Tâche mise à jour.');
                 }
-                chargerDonnees(siteId);
+                if (currentSection !== 'planning') chargerDonnees(siteId);
                 updateDashboard();
+                if (currentSection === 'planning') loadPlanning();
             };
             actionsCell.appendChild(saveBtn);
         }
@@ -498,12 +506,13 @@ function loadInterface() {
             }
             db.ref(refPath).remove();
             alert('Tâche supprimée.');
-            chargerDonnees(siteId);
+            if (currentSection !== 'planning') chargerDonnees(siteId);
             updateDashboard();
+            if (currentSection === 'planning') loadPlanning();
         }
 
         function chargerDonnees(tabId) {
-            let refPath = tabId === 'completed-tasks' ? `${currentSection}/completed-tasks` : (currentSection === 'maintenance' ? `${currentSection}/tasks/${tabId}` : `${currentSection}/tasks`;
+            let refPath = tabId === 'completed-tasks' ? `${currentSection}/completed-tasks` : (currentSection === 'maintenance' ? `${currentSection}/tasks/${tabId}` : `${currentSection}/tasks`);
             const tableId = tabId === 'completed-tasks' ? 'table-completed' : `table-${tabId}`;
             const tableBody = document.querySelector(`#${tableId} tbody`);
             if (!tableBody) {
@@ -515,7 +524,7 @@ function loadInterface() {
                 if (!snapshot.exists() || snapshot.numChildren() === 0) {
                     const row = tableBody.insertRow();
                     const cell = row.insertCell(0);
-                    cell.colSpan = 7; // Ajusté pour nouvelle colonne dateButoir
+                    cell.colSpan = tabId === 'completed-tasks' ? 5 : 7;
                     cell.classList.add('no-data');
                     cell.textContent = 'Aucune tâche pour le moment.';
                     return;
@@ -532,16 +541,19 @@ function loadInterface() {
                     row.insertCell(3).textContent = item.dateButoir;
                     row.insertCell(4).textContent = item.responsable;
                     row.insertCell(5).textContent = item.criticite;
-                    const actionsCell = row.insertCell(6);
-                    const editBtn = document.createElement('button');
-                    editBtn.textContent = 'Modifier';
-                    editBtn.onclick = () => showEditForm(tabId, child.key, row, item, currentSection);
-                    actionsCell.appendChild(editBtn);
-                    const deleteBtn = document.createElement('button');
-                    deleteBtn.textContent = 'Supprimer';
-                    deleteBtn.onclick = () => supprimerTache(tabId, child.key, item, currentSection);
-                    actionsCell.appendChild(deleteBtn);
+                    if (tabId !== 'completed-tasks') {
+                        const actionsCell = row.insertCell(6);
+                        const editBtn = document.createElement('button');
+                        editBtn.textContent = 'Modifier';
+                        editBtn.onclick = () => showEditForm(tabId, child.key, row, item, currentSection);
+                        actionsCell.appendChild(editBtn);
+                        const deleteBtn = document.createElement('button');
+                        deleteBtn.textContent = 'Supprimer';
+                        deleteBtn.onclick = () => supprimerTache(tabId, child.key, item, currentSection);
+                        actionsCell.appendChild(deleteBtn);
+                    }
                 });
+                console.log('Data loaded for tab:', tabId, 'in section:', currentSection);
             });
         }
 
@@ -592,14 +604,7 @@ function loadInterface() {
                     const ctx = canvas.getContext('2d');
                     tasksChart = new Chart(ctx, {
                         type: 'pie',
-                        data: {
-                            labels: ['En cours', 'Terminées', 'En attente'],
-                            datasets: [{
-                                data: [0, 0, 0],
-                                backgroundColor: ['#ffc107', '#28a745', '#dc3545'],
-                                borderWidth: 1
-                            }]
-                        },
+                        data: { labels: ['En cours', 'Terminées', 'En attente'], datasets: [{ data: [0, 0, 0], backgroundColor: ['#ffc107', '#28a745', '#dc3545'], borderWidth: 1 }] },
                         options: { responsive: true }
                     });
                     return;
@@ -615,22 +620,12 @@ function loadInterface() {
                 document.getElementById('en-cours').textContent = `Tâches en Cours : ${enCours}`;
                 document.getElementById('terminees').textContent = `Tâches Terminées : ${terminees}`;
                 document.getElementById('en-attente').textContent = `Tâches en Attente : ${enAttente}`;
-
                 if (tasksChart) tasksChart.destroy();
                 const ctx = canvas.getContext('2d');
                 tasksChart = new Chart(ctx, {
                     type: 'pie',
-                    data: {
-                        labels: ['En cours', 'Terminées', 'En attente'],
-                        datasets: [{
-                            data: [enCours, terminees, enAttente],
-                            backgroundColor: ['#ffc107', '#28a745', '#dc3545'],
-                            borderWidth: 1
-                        }]
-                    },
-                    options: {
-                        responsive: true
-                    }
+                    data: { labels: ['En cours', 'Terminées', 'En attente'], datasets: [{ data: [enCours, terminees, enAttente], backgroundColor: ['#ffc107', '#28a745', '#dc3545'], borderWidth: 1 }] },
+                    options: { responsive: true }
                 });
             });
         }
@@ -697,25 +692,27 @@ function loadInterface() {
         }
 
         function loadPlanning() {
-            const prestataire = document.getElementById('prestataire-select').value;
+            const prestataireSelect = document.getElementById('prestataire-select');
+            if (!prestataireSelect) return;
+            const prestataire = prestataireSelect.value;
+            const tableBody = document.querySelector('#table-planning tbody');
+            if (!tableBody) return;
+            tableBody.innerHTML = '';
             if (!prestataire) {
-                document.querySelector('#table-planning tbody').innerHTML = '<tr><td colspan="7" class="no-data">Sélectionnez un prestataire pour voir son planning.</td></tr>';
+                tableBody.innerHTML = '<tr><td colspan="7" class="no-data">Sélectionnez un prestataire pour voir son planning.</td></tr>';
                 return;
             }
-            const tableBody = document.querySelector('#table-planning tbody');
-            tableBody.innerHTML = '';
             const weekEnd = new Date(currentWeekStart);
             weekEnd.setDate(weekEnd.getDate() + 6);
-            document.getElementById('week-display').textContent = `Semaine du ${currentWeekStart.toLocaleDateString()} au ${weekEnd.toLocaleDateString()}`;
+            const weekDisplay = document.getElementById('week-display');
+            if (weekDisplay) weekDisplay.textContent = `Semaine du ${currentWeekStart.toLocaleDateString()} au ${weekEnd.toLocaleDateString()}`;
             const today = new Date();
-
-            let tasksToDelete = []; // Pour effacer plus tard
 
             allSections.forEach(section => {
                 const basePath = `${section}/tasks`;
                 db.ref(basePath).once('value', snapshot => {
                     snapshot.forEach(subSnap => {
-                        const subKey = subSnap.key; // Pour maintenance, c'est le site
+                        const subKey = subSnap.key; // Site pour maintenance
                         subSnap.forEach(taskSnap => {
                             const task = taskSnap.val();
                             const taskKey = taskSnap.key;
@@ -748,11 +745,13 @@ function loadInterface() {
                                         deleteBtn.onclick = () => supprimerTache(subKey, taskKey, task, section);
                                         actionsCell.appendChild(deleteBtn);
                                     }
-                                    tasksToDelete.push(row);
                                 }
                             }
                         });
                     });
+                    if (tableBody.rows.length === 0) {
+                        tableBody.innerHTML = '<tr><td colspan="7" class="no-data">Aucune tâche pour cette semaine.</td></tr>';
+                    }
                 });
             });
         }
@@ -766,6 +765,7 @@ function loadInterface() {
             if (confirm('Êtes-vous sûr de vouloir effacer le contenu du tableau ? Cela supprimera ces tâches de la base.')) {
                 const rows = document.querySelectorAll('#table-planning tbody tr');
                 rows.forEach(row => {
+                    if (row.classList.contains('no-data')) return;
                     const section = row.dataset.section;
                     const subKey = row.dataset.subKey;
                     const taskKey = row.dataset.taskKey;
@@ -778,7 +778,13 @@ function loadInterface() {
         }
 
         function creerNouveauPlanning() {
-            document.getElementById('new-planning-form').style.display = 'block';
+            const formDiv = document.getElementById('new-planning-form');
+            if (formDiv) formDiv.style.display = 'block';
+            const responsableInput = document.getElementById('new-responsable');
+            const prestataireSelect = document.getElementById('prestataire-select');
+            if (responsableInput && prestataireSelect) {
+                responsableInput.value = prestataireSelect.value;
+            }
         }
 
         function ajouterTacheAuPlanning() {
@@ -795,9 +801,11 @@ function loadInterface() {
                 responsable: prestataire,
                 criticite: document.getElementById('new-criticite').value
             };
+            if (!newData.tache || !newData.statut || !newData.date || !newData.dateButoir || !newData.criticite) return alert('Veuillez remplir tous les champs.');
             const refPath = section === 'maintenance' ? `${section}/tasks/${site}` : `${section}/tasks`;
             db.ref(refPath).push(newData);
-            document.getElementById('form-new-planning').reset();
+            const form = document.getElementById('form-new-planning');
+            if (form) form.reset();
             document.getElementById('new-planning-form').style.display = 'none';
             alert('Tâche ajoutée au planning.');
             loadPlanning();
