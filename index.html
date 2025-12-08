@@ -25,6 +25,10 @@
         #error-message { color: red; }
         #tasksChart { max-width: 400px; margin: 20px auto; }
         .no-data { text-align: center; color: #666; padding: 10px; }
+        .admin-only { display: none; }
+        .overdue { color: red; }
+        .critical { color: orange; font-weight: bold; }
+        #week-selector { margin: 10px 0; text-align: center; }
         @media (max-width: 600px) { nav { flex-direction: column; } }
     </style>
     <!-- Firebase SDK -->
@@ -42,6 +46,7 @@
             <option value="maintenance">Maintenance</option>
             <option value="it">IT</option>
             <option value="biomed">Biomed</option>
+            <option value="planning">Planning Hebdomadaire</option>
             <option value="logout">Déconnexion</option>
         </select>
     </header>
@@ -66,11 +71,12 @@
         const db = firebase.database();
         const auth = firebase.auth();
 
-        const adminEmail = "mkhalife@cmd.cd";
+        const adminEmails = ["mkhalife@cmd.cd", "mmbongo@cmd.cd"];
         let currentUser = null;
         let currentSection = 'maintenance';
         let tasksChart = null;
         const maintenanceSites = ['CMDG', 'CMDN', 'CMDLT', 'CMDB', 'Manhattan', 'Residence'];
+        const allSections = ['maintenance', 'it', 'biomed'];
 
         auth.onAuthStateChanged(user => {
             currentUser = user;
@@ -88,12 +94,12 @@
                 return;
             }
             currentSection = value;
-            loadInterface(); // Recharger l'interface complète
+            loadInterface();
             loadButtonsForSection();
             setTimeout(() => {
                 openTab('dashboard');
-                chargerTousDonnees();
-            }, 100); // Délai pour DOM prêt
+                if (currentSection !== 'planning') chargerTousDonnees();
+            }, 100);
             console.log('Changed to section:', currentSection);
         }
 
@@ -152,10 +158,10 @@
             auth.signOut().then(() => loadLogin());
         }
 
-        function loadInterface() {
+function loadInterface() {
             const main = document.getElementById('main-content');
             main.innerHTML = '';
-            // Tabs communs
+            // Tabs communs pour toutes les sections
             main.innerHTML += `
                 <div id="dashboard" class="tab-content">
                     <h2>Tableau de Bord</h2>
@@ -195,7 +201,72 @@
                 </div>
             `;
             // Tabs spécifiques
-            if (currentSection !== 'maintenance') {
+            if (currentSection === 'planning') {
+                main.innerHTML += `
+                    <div id="planning-tab" class="tab-content">
+                        <h2>Planning Hebdomadaire par Prestataire</h2>
+                        <select id="prestataire-select" onchange="loadPlanning()">
+                            <option value="">Sélectionnez un prestataire</option>
+                        </select>
+                        <div id="week-selector">
+                            <button onclick="changeWeek(-1)">Semaine Précédente</button>
+                            <span id="week-display">Semaine courante</span>
+                            <button onclick="changeWeek(1)">Semaine Suivante</button>
+                        </div>
+                        <table id="table-planning">
+                            <thead><tr><th>Tâche</th><th>Date Début</th><th>Criticité</th><th>Date Butoir</th><th>Statut</th><th>Section</th><th class="admin-only">Actions</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                        <div class="admin-only" id="planning-actions">
+                            <button onclick="effacerPlanning()">Effacer le contenu du tableau</button>
+                            <button onclick="creerNouveauPlanning()">Créer un nouveau planning hebdomadaire</button>
+                        </div>
+                        <div id="new-planning-form" style="display:none;">
+                            <h3>Ajouter une Tâche au Planning</h3>
+                            <form id="form-new-planning">
+                                <input type="text" id="new-tache" placeholder="Description de la tâche" required>
+                                <select id="new-statut" required>
+                                    <option value="">Statut</option>
+                                    <option value="En cours">En cours</option>
+                                    <option value="En attente">En attente</option>
+                                </select>
+                                <input type="date" id="new-date-debut" placeholder="Date début" required>
+                                <input type="date" id="new-date-butoir" placeholder="Date butoir" required>
+                                <input type="text" id="new-responsable" value="${document.getElementById('prestataire-select') ? document.getElementById('prestataire-select').value : ''}" readonly>
+                                <select id="new-criticite" required>
+                                    <option value="">Criticité (1-5)</option>
+                                    <option value="1">1 (Faible)</option>
+                                    <option value="2">2</option>
+                                    <option value="3">3</option>
+                                    <option value="4">4</option>
+                                    <option value="5">5 (Critique)</option>
+                                </select>
+                                <select id="new-section" required>
+                                    <option value="">Section</option>
+                                    <option value="maintenance">Maintenance (choisissez un site)</option>
+                                    <option value="it">IT</option>
+                                    <option value="biomed">Biomed</option>
+                                </select>
+                                <select id="new-site" style="display:none;" required>
+                                    <option value="">Site Maintenance</option>
+                                    <option value="CMDG">CMDG</option>
+                                    <option value="CMDN">CMDN</option>
+                                    <option value="CMDLT">CMDLT</option>
+                                    <option value="CMDB">CMDB</option>
+                                    <option value="Manhattan">Manhattan</option>
+                                    <option value="Residence">Residence</option>
+                                </select>
+                                <button type="button" onclick="ajouterTacheAuPlanning()">Ajouter Tâche</button>
+                            </form>
+                        </div>
+                    </div>
+                `;
+                loadPrestataires();
+                checkAdminAndShowElements();
+                document.getElementById('new-section').onchange = function() {
+                    document.getElementById('new-site').style.display = this.value === 'maintenance' ? 'block' : 'none';
+                };
+            } else if (currentSection !== 'maintenance') {
                 main.innerHTML += `
                     <div id="tasks" class="tab-content">
                         <h2>Tâches à Suivre</h2>
@@ -207,7 +278,8 @@
                                 <option value="Terminée">Terminée</option>
                                 <option value="En attente">En attente</option>
                             </select>
-                            <input type="date" id="date-tasks" required>
+                            <input type="date" id="date-tasks" placeholder="Date début" required>
+                            <input type="date" id="date-butoir-tasks" placeholder="Date butoir (optionnel)">
                             <input type="text" id="responsable-tasks" placeholder="Nom du responsable (optionnel)">
                             <select id="criticite-tasks" required>
                                 <option value="">Criticité (1-5)</option>
@@ -220,13 +292,12 @@
                             <button type="button" onclick="ajouterTache('tasks')">Ajouter Tâche</button>
                         </form>
                         <table id="table-tasks">
-                            <thead><tr><th>Tâche</th><th>Statut</th><th>Date</th><th>Responsable</th><th>Criticité</th><th>Actions</th></tr></thead>
+                            <thead><tr><th>Tâche</th><th>Statut</th><th>Date Début</th><th>Date Butoir</th><th>Responsable</th><th>Criticité</th><th>Actions</th></tr></thead>
                             <tbody></tbody>
                         </table>
                         <button onclick="exporterDonnees('tasks')">Exporter en CSV</button>
                     </div>
                 `;
-                console.log('Tasks tab created for non-maintenance section');
             } else {
                 maintenanceSites.forEach(site => {
                     main.innerHTML += `
@@ -240,7 +311,8 @@
                                     <option value="Terminée">Terminée</option>
                                     <option value="En attente">En attente</option>
                                 </select>
-                                <input type="date" id="date-${site}" required>
+                                <input type="date" id="date-${site}" placeholder="Date début" required>
+                                <input type="date" id="date-butoir-${site}" placeholder="Date butoir (optionnel)">
                                 <input type="text" id="responsable-${site}" placeholder="Nom du responsable (optionnel)">
                                 <select id="criticite-${site}" required>
                                     <option value="">Criticité (1-5)</option>
@@ -253,7 +325,7 @@
                                 <button type="button" onclick="ajouterTache('${site}')">Ajouter Tâche</button>
                             </form>
                             <table id="table-${site}">
-                                <thead><tr><th>Tâche</th><th>Statut</th><th>Date</th><th>Responsable</th><th>Criticité</th><th>Actions</th></tr></thead>
+                                <thead><tr><th>Tâche</th><th>Statut</th><th>Date Début</th><th>Date Butoir</th><th>Responsable</th><th>Criticité</th><th>Actions</th></tr></thead>
                                 <tbody></tbody>
                             </table>
                             <button onclick="exporterDonnees('${site}')">Exporter en CSV</button>
@@ -262,6 +334,8 @@
                 });
             }
             loadButtonsForSection();
+            chargerTousDonnees();
+            openTab('dashboard');
             console.log('Interface loaded for section:', currentSection);
         }
 
@@ -275,13 +349,17 @@
                 btn.onclick = () => openTab(tabId);
                 nav.appendChild(btn);
             });
-            if (currentSection !== 'maintenance') {
+            if (currentSection === 'planning') {
+                const btn = document.createElement('button');
+                btn.textContent = 'Planning';
+                btn.onclick = () => openTab('planning-tab');
+                nav.appendChild(btn);
+            } else if (currentSection !== 'maintenance') {
                 const btn = document.createElement('button');
                 btn.textContent = 'Tâches à Suivre';
                 btn.onclick = () => {
                     openTab('tasks');
                     chargerDonnees('tasks');
-                    console.log('Button clicked for tasks tab in', currentSection);
                 };
                 nav.appendChild(btn);
             } else {
@@ -299,17 +377,17 @@
             const tab = document.getElementById(tabId);
             if (tab) {
                 tab.classList.add('active');
-                console.log('Tab opened:', tabId);
-            } else {
-                console.error('Tab not found:', tabId);
             }
             if (tabId === 'userManagement') updateUsersTable();
-            if (maintenanceSites.includes(tabId) || tabId === 'tasks' || tabId === 'completed-tasks') chargerDonnees(tabId);
+            if (maintenanceSites.includes(tabId) || tabId === 'tasks' || tabId === 'completed-tasks') {
+                chargerDonnees(tabId);
+            }
             if (tabId === 'dashboard') updateDashboard();
+            if (tabId === 'planning-tab') loadPlanning();
         }
 
         function isAdmin() {
-            return currentUser && currentUser.email === adminEmail;
+            return currentUser && adminEmails.includes(currentUser.email);
         }
 
         function isAuthorized() {
@@ -348,102 +426,84 @@
             const tache = document.getElementById(`tache-${siteId}`).value;
             const statut = document.getElementById(`statut-${siteId}`).value;
             const date = document.getElementById(`date-${siteId}`).value;
+            const dateButoir = document.getElementById(`date-butoir-${siteId}`).value || '';
             const responsable = document.getElementById(`responsable-${siteId}`).value || '';
             const criticite = document.getElementById(`criticite-${siteId}`).value;
-            if (!tache || !statut || !date || !criticite) return alert('Veuillez remplir les champs obligatoires.');
+            if (!tache || !statut || !date || !criticite) return alert('Veuillez remplir les champs obligatoires (tâche, statut, date début, criticité).');
             const refPath = currentSection === 'maintenance' ? `${currentSection}/tasks/${siteId}` : `${currentSection}/tasks`;
-            db.ref(refPath).push({ tache, statut, date, responsable, criticite });
+            db.ref(refPath).push({ tache, statut, date, dateButoir, responsable, criticite });
             document.getElementById(`form-${siteId}`).reset();
             alert('Tâche ajoutée !');
             openTab('dashboard');
         }
 
-        function showEditForm(siteId, key, row, item) {
+        function showEditForm(siteId, key, row, item, section) {
             const tacheCell = row.cells[0];
             const statutCell = row.cells[1];
             const dateCell = row.cells[2];
-            const respCell = row.cells[3];
-            const critCell = row.cells[4];
-            const actionsCell = row.cells[5];
+            const dateButoirCell = row.cells[3];
+            const respCell = row.cells[4];
+            const critCell = row.cells[5];
+            const actionsCell = row.cells[6];
 
-            const tacheInput = document.createElement('input');
-            tacheInput.type = 'text';
-            tacheInput.value = item.tache;
-            tacheCell.innerHTML = '';
-            tacheCell.appendChild(tacheInput);
-
-            const statutSelect = document.createElement('select');
-            ['En cours', 'Terminée', 'En attente'].forEach(opt => {
-                const option = document.createElement('option');
-                option.value = opt;
-                option.textContent = opt;
-                option.selected = opt === item.statut;
-                statutSelect.appendChild(option);
-            });
-            statutCell.innerHTML = '';
-            statutCell.appendChild(statutSelect);
-
-            const dateInput = document.createElement('input');
-            dateInput.type = 'date';
-            dateInput.value = item.date;
-            dateCell.innerHTML = '';
-            dateCell.appendChild(dateInput);
-
-            const respInput = document.createElement('input');
-            respInput.type = 'text';
-            respInput.value = item.responsable || '';
-            respCell.innerHTML = '';
-            respCell.appendChild(respInput);
-
-            const critSelect = document.createElement('select');
-            [1, 2, 3, 4, 5].forEach(opt => {
-                const option = document.createElement('option');
-                option.value = opt;
-                option.textContent = opt;
-                option.selected = opt == (item.criticite || 3);
-                critSelect.appendChild(option);
-            });
-            critCell.innerHTML = '';
-            critCell.appendChild(critSelect);
+            tacheCell.innerHTML = `<input type="text" value="${item.tache}">`;
+            statutCell.innerHTML = `<select>
+                <option value="En cours" ${item.statut === 'En cours' ? 'selected' : ''}>En cours</option>
+                <option value="Terminée" ${item.statut === 'Terminée' ? 'selected' : ''}>Terminée</option>
+                <option value="En attente" ${item.statut === 'En attente' ? 'selected' : ''}>En attente</option>
+            </select>`;
+            dateCell.innerHTML = `<input type="date" value="${item.date}">`;
+            dateButoirCell.innerHTML = `<input type="date" value="${item.dateButoir || ''}">`;
+            respCell.innerHTML = `<input type="text" value="${item.responsable || ''}">`;
+            critCell.innerHTML = `<select>
+                <option value="1" ${item.criticite === '1' ? 'selected' : ''}>1</option>
+                <option value="2" ${item.criticite === '2' ? 'selected' : ''}>2</option>
+                <option value="3" ${item.criticite === '3' ? 'selected' : ''}>3</option>
+                <option value="4" ${item.criticite === '4' ? 'selected' : ''}>4</option>
+                <option value="5" ${item.criticite === '5' ? 'selected' : ''}>5</option>
+            </select>`;
 
             actionsCell.innerHTML = '';
             const saveBtn = document.createElement('button');
             saveBtn.textContent = 'Sauvegarder';
             saveBtn.onclick = () => {
                 const newData = {
-                    tache: tacheInput.value,
-                    statut: statutSelect.value,
-                    date: dateInput.value,
-                    responsable: respInput.value || '',
-                    criticite: critSelect.value
+                    tache: tacheCell.querySelector('input').value,
+                    statut: statutCell.querySelector('select').value,
+                    date: dateCell.querySelector('input').value,
+                    dateButoir: dateButoirCell.querySelector('input').value || '',
+                    responsable: respCell.querySelector('input').value || '',
+                    criticite: critCell.querySelector('select').value
                 };
-                const refPath = currentSection === 'maintenance' ? `${currentSection}/tasks/${siteId}/${key}` : `${currentSection}/tasks/${key}`;
+                const refPath = section === 'maintenance' ? `${section}/tasks/${siteId}/${key}` : `${section}/tasks/${key}`;
                 db.ref(refPath).update(newData);
                 if (newData.statut === 'Terminée') {
-                    db.ref(`${currentSection}/completed-tasks`).push(newData);
+                    db.ref(`${section}/completed-tasks`).push(newData);
                     db.ref(refPath).remove();
-                    alert('Tâche mise à "Terminée" et déplacée.');
+                    alert('Tâche terminée et déplacée.');
                 } else {
                     alert('Tâche mise à jour.');
                 }
+                chargerDonnees(siteId);
                 updateDashboard();
             };
             actionsCell.appendChild(saveBtn);
         }
 
-        function supprimerTache(siteId, key, item) {
+        function supprimerTache(siteId, key, item, section) {
             if (!isAuthorized()) return alert('Non autorisé.');
-            const refPath = currentSection === 'maintenance' ? `${currentSection}/tasks/${siteId}/${key}` : `${currentSection}/tasks/${key}`;
+            const refPath = section === 'maintenance' ? `${section}/tasks/${siteId}/${key}` : `${section}/tasks/${key}`;
             if (item.statut === 'Terminée') {
-                db.ref(`${currentSection}/completed-tasks`).push(item);
+                db.ref(`${section}/completed-tasks`).push(item);
             }
             db.ref(refPath).remove();
-            alert('Tâche supprimée ou déplacée.');
+            alert('Tâche supprimée.');
+            chargerDonnees(siteId);
             updateDashboard();
         }
 
         function chargerDonnees(tabId) {
-            let refPath = tabId === 'completed-tasks' ? `${currentSection}/completed-tasks` : (currentSection === 'maintenance' ? `${currentSection}/tasks/${tabId}` : `${currentSection}/tasks`);
+            let refPath = tabId === 'completed-tasks' ? `${currentSection}/completed-tasks` : (currentSection === 'maintenance' ? `${currentSection}/tasks/${tabId}` : `${currentSection}/tasks`;
             const tableId = tabId === 'completed-tasks' ? 'table-completed' : `table-${tabId}`;
             const tableBody = document.querySelector(`#${tableId} tbody`);
             if (!tableBody) {
@@ -455,7 +515,7 @@
                 if (!snapshot.exists() || snapshot.numChildren() === 0) {
                     const row = tableBody.insertRow();
                     const cell = row.insertCell(0);
-                    cell.colSpan = (tabId === 'completed-tasks' ? 5 : 6);
+                    cell.colSpan = 7; // Ajusté pour nouvelle colonne dateButoir
                     cell.classList.add('no-data');
                     cell.textContent = 'Aucune tâche pour le moment.';
                     return;
@@ -464,32 +524,31 @@
                     const item = child.val();
                     item.responsable = item.responsable || 'Non assigné';
                     item.criticite = item.criticite || 3;
+                    item.dateButoir = item.dateButoir || item.date;
                     const row = tableBody.insertRow();
                     row.insertCell(0).textContent = item.tache;
                     row.insertCell(1).textContent = item.statut;
                     row.insertCell(2).textContent = item.date;
-                    row.insertCell(3).textContent = item.responsable;
-                    row.insertCell(4).textContent = item.criticite;
-                    if (tabId !== 'completed-tasks') {
-                        const actionsCell = row.insertCell(5);
-                        const editBtn = document.createElement('button');
-                        editBtn.textContent = 'Modifier';
-                        editBtn.onclick = () => showEditForm(tabId, child.key, row, item);
-                        actionsCell.appendChild(editBtn);
-                        const deleteBtn = document.createElement('button');
-                        deleteBtn.textContent = 'Supprimer';
-                        deleteBtn.onclick = () => supprimerTache(tabId, child.key, item);
-                        actionsCell.appendChild(deleteBtn);
-                    }
+                    row.insertCell(3).textContent = item.dateButoir;
+                    row.insertCell(4).textContent = item.responsable;
+                    row.insertCell(5).textContent = item.criticite;
+                    const actionsCell = row.insertCell(6);
+                    const editBtn = document.createElement('button');
+                    editBtn.textContent = 'Modifier';
+                    editBtn.onclick = () => showEditForm(tabId, child.key, row, item, currentSection);
+                    actionsCell.appendChild(editBtn);
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.textContent = 'Supprimer';
+                    deleteBtn.onclick = () => supprimerTache(tabId, child.key, item, currentSection);
+                    actionsCell.appendChild(deleteBtn);
                 });
-                console.log('Data loaded for tab:', tabId, 'in section:', currentSection);
             });
         }
 
         function chargerTousDonnees() {
             if (currentSection === 'maintenance') {
                 maintenanceSites.forEach(site => chargerDonnees(site));
-            } else {
+            } else if (currentSection !== 'planning') {
                 chargerDonnees('tasks');
             }
             chargerDonnees('completed-tasks');
@@ -498,10 +557,10 @@
         function exporterDonnees(siteId) {
             const refPath = currentSection === 'maintenance' ? `${currentSection}/tasks/${siteId}` : `${currentSection}/tasks`;
             db.ref(refPath).once('value', snapshot => {
-                let csv = 'Tâche,Statut,Date,Responsable,Criticité\n';
+                let csv = 'Tâche,Statut,Date Début,Date Butoir,Responsable,Criticité\n';
                 snapshot.forEach(child => {
                     const item = child.val();
-                    csv += `${item.tache},${item.statut},${item.date},${item.responsable || 'Non assigné'},${item.criticite || 3}\n`;
+                    csv += `${item.tache},${item.statut},${item.date},${item.dateButoir || item.date},${item.responsable || 'Non assigné'},${item.criticite || 3}\n`;
                 });
                 const blob = new Blob([csv], { type: 'text/csv' });
                 const a = document.createElement('a');
@@ -533,7 +592,14 @@
                     const ctx = canvas.getContext('2d');
                     tasksChart = new Chart(ctx, {
                         type: 'pie',
-                        data: { labels: ['En cours', 'Terminées', 'En attente'], datasets: [{ data: [0, 0, 0], backgroundColor: ['#ffc107', '#28a745', '#dc3545'], borderWidth: 1 }] },
+                        data: {
+                            labels: ['En cours', 'Terminées', 'En attente'],
+                            datasets: [{
+                                data: [0, 0, 0],
+                                backgroundColor: ['#ffc107', '#28a745', '#dc3545'],
+                                borderWidth: 1
+                            }]
+                        },
                         options: { responsive: true }
                     });
                     return;
@@ -549,12 +615,22 @@
                 document.getElementById('en-cours').textContent = `Tâches en Cours : ${enCours}`;
                 document.getElementById('terminees').textContent = `Tâches Terminées : ${terminees}`;
                 document.getElementById('en-attente').textContent = `Tâches en Attente : ${enAttente}`;
+
                 if (tasksChart) tasksChart.destroy();
                 const ctx = canvas.getContext('2d');
                 tasksChart = new Chart(ctx, {
                     type: 'pie',
-                    data: { labels: ['En cours', 'Terminées', 'En attente'], datasets: [{ data: [enCours, terminees, enAttente], backgroundColor: ['#ffc107', '#28a745', '#dc3545'], borderWidth: 1 }] },
-                    options: { responsive: true }
+                    data: {
+                        labels: ['En cours', 'Terminées', 'En attente'],
+                        datasets: [{
+                            data: [enCours, terminees, enAttente],
+                            backgroundColor: ['#ffc107', '#28a745', '#dc3545'],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true
+                    }
                 });
             });
         }
@@ -593,6 +669,138 @@
                 document.getElementById('monthly-report').textContent = monthlyText || 'Aucune donnée mensuelle.';
                 document.getElementById('annual-report').textContent = annualText || 'Aucune donnée annuelle.';
             });
+        }
+
+        // Fonctions pour Planning
+        let currentWeekStart = new Date();
+        currentWeekStart.setDate(currentWeekStart.getDate() - currentWeekStart.getDay() + 1); // Lundi
+
+        function loadPrestataires() {
+            const select = document.getElementById('prestataire-select');
+            if (!select) return;
+            db.ref('authorizedUsers').once('value', snapshot => {
+                snapshot.forEach(child => {
+                    const email = child.val();
+                    const option = document.createElement('option');
+                    option.value = email;
+                    option.textContent = email;
+                    select.appendChild(option);
+                });
+            });
+        }
+
+        function checkAdminAndShowElements() {
+            const isAdmin = currentUser && adminEmails.includes(currentUser.email);
+            document.querySelectorAll('.admin-only').forEach(el => {
+                el.style.display = isAdmin ? 'block' : 'none';
+            });
+        }
+
+        function loadPlanning() {
+            const prestataire = document.getElementById('prestataire-select').value;
+            if (!prestataire) {
+                document.querySelector('#table-planning tbody').innerHTML = '<tr><td colspan="7" class="no-data">Sélectionnez un prestataire pour voir son planning.</td></tr>';
+                return;
+            }
+            const tableBody = document.querySelector('#table-planning tbody');
+            tableBody.innerHTML = '';
+            const weekEnd = new Date(currentWeekStart);
+            weekEnd.setDate(weekEnd.getDate() + 6);
+            document.getElementById('week-display').textContent = `Semaine du ${currentWeekStart.toLocaleDateString()} au ${weekEnd.toLocaleDateString()}`;
+            const today = new Date();
+
+            let tasksToDelete = []; // Pour effacer plus tard
+
+            allSections.forEach(section => {
+                const basePath = `${section}/tasks`;
+                db.ref(basePath).once('value', snapshot => {
+                    snapshot.forEach(subSnap => {
+                        const subKey = subSnap.key; // Pour maintenance, c'est le site
+                        subSnap.forEach(taskSnap => {
+                            const task = taskSnap.val();
+                            const taskKey = taskSnap.key;
+                            if (task.responsable === prestataire && task.statut !== 'Terminée') {
+                                const taskDateDebut = new Date(task.date);
+                                const taskDateButoir = new Date(task.dateButoir || task.date);
+                                if ((taskDateDebut <= weekEnd && taskDateButoir >= currentWeekStart) || (taskDateDebut >= currentWeekStart && taskDateDebut <= weekEnd)) {
+                                    const row = tableBody.insertRow();
+                                    row.dataset.section = section;
+                                    row.dataset.subKey = subKey;
+                                    row.dataset.taskKey = taskKey;
+                                    row.insertCell(0).textContent = task.tache;
+                                    row.insertCell(1).textContent = task.date;
+                                    const critCell = row.insertCell(2);
+                                    critCell.textContent = task.criticite;
+                                    if (parseInt(task.criticite) >= 4) critCell.classList.add('critical');
+                                    const butoirCell = row.insertCell(3);
+                                    butoirCell.textContent = task.dateButoir || task.date;
+                                    if (taskDateButoir < today) butoirCell.classList.add('overdue');
+                                    row.insertCell(4).textContent = task.statut;
+                                    row.insertCell(5).textContent = section + (section === 'maintenance' ? ` (${subKey})` : '');
+                                    if (isAdmin()) {
+                                        const actionsCell = row.insertCell(6);
+                                        const editBtn = document.createElement('button');
+                                        editBtn.textContent = 'Modifier';
+                                        editBtn.onclick = () => showEditForm(subKey, taskKey, row, task, section);
+                                        actionsCell.appendChild(editBtn);
+                                        const deleteBtn = document.createElement('button');
+                                        deleteBtn.textContent = 'Supprimer';
+                                        deleteBtn.onclick = () => supprimerTache(subKey, taskKey, task, section);
+                                        actionsCell.appendChild(deleteBtn);
+                                    }
+                                    tasksToDelete.push(row);
+                                }
+                            }
+                        });
+                    });
+                });
+            });
+        }
+
+        function changeWeek(offset) {
+            currentWeekStart.setDate(currentWeekStart.getDate() + offset * 7);
+            loadPlanning();
+        }
+
+        function effacerPlanning() {
+            if (confirm('Êtes-vous sûr de vouloir effacer le contenu du tableau ? Cela supprimera ces tâches de la base.')) {
+                const rows = document.querySelectorAll('#table-planning tbody tr');
+                rows.forEach(row => {
+                    const section = row.dataset.section;
+                    const subKey = row.dataset.subKey;
+                    const taskKey = row.dataset.taskKey;
+                    const refPath = section === 'maintenance' ? `${section}/tasks/${subKey}/${taskKey}` : `${section}/tasks/${taskKey}`;
+                    db.ref(refPath).remove();
+                });
+                alert('Contenu du tableau effacé.');
+                loadPlanning();
+            }
+        }
+
+        function creerNouveauPlanning() {
+            document.getElementById('new-planning-form').style.display = 'block';
+        }
+
+        function ajouterTacheAuPlanning() {
+            const prestataire = document.getElementById('prestataire-select').value;
+            if (!prestataire) return alert('Sélectionnez un prestataire.');
+            const section = document.getElementById('new-section').value;
+            const site = section === 'maintenance' ? document.getElementById('new-site').value : '';
+            if (section === 'maintenance' && !site) return alert('Sélectionnez un site pour Maintenance.');
+            const newData = {
+                tache: document.getElementById('new-tache').value,
+                statut: document.getElementById('new-statut').value,
+                date: document.getElementById('new-date-debut').value,
+                dateButoir: document.getElementById('new-date-butoir').value,
+                responsable: prestataire,
+                criticite: document.getElementById('new-criticite').value
+            };
+            const refPath = section === 'maintenance' ? `${section}/tasks/${site}` : `${section}/tasks`;
+            db.ref(refPath).push(newData);
+            document.getElementById('form-new-planning').reset();
+            document.getElementById('new-planning-form').style.display = 'none';
+            alert('Tâche ajoutée au planning.');
+            loadPlanning();
         }
 
         // Initialisation
