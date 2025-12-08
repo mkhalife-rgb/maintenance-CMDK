@@ -41,6 +41,11 @@
         .task-item:hover { background-color: #f0f0f0; }
         #task-detail { display: none; margin-top: 20px; border: 1px solid #ddd; padding: 10px; border-radius: 5px; }
         .due-month { background-color: #d4edda; } /* Vert clair pour mois dus */
+        #annual-table th:nth-child(2), #annual-table td:nth-child(2) { width: 100px; } /* Statut */
+        #annual-table th:nth-child(3), #annual-table td:nth-child(3) { width: 300px; } /* Commentaires */
+        #annual-table th:nth-child(4), #annual-table td:nth-child(4) { width: 150px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; } /* Responsable réduit */
+        #annual-table th:nth-child(5), #annual-table td:nth-child(5) { width: 100px; } /* Checklist */
+        #filter-due { margin: 10px 0; }
         @media (max-width: 600px) { nav { flex-direction: column; } table { font-size: 12px; } }
     </style>
     <!-- Firebase SDK -->
@@ -349,15 +354,15 @@
                         <div id="task-list"></div>
                         <div id="task-detail" style="display:none;">
                             <h3 id="detail-title"></h3>
-                            <select id="year-select" onchange="loadAnnualPlanning()">
-                                <!-- Années dynamiques -->
-                            </select>
+                            <select id="year-select" onchange="loadAnnualPlanning()"></select>
+                            <label id="filter-due"><input type="checkbox" onchange="filterDueMonths(this.checked)"> Afficher seulement mois dus</label>
                             <table id="annual-table">
-                                <thead><tr><th>Mois</th><th>Commentaires</th><th>Responsable</th></tr></thead>
+                                <thead><tr><th>Mois</th><th>Statut</th><th>Commentaires</th><th>Responsable</th><th>Checklist</th></tr></thead>
                                 <tbody id="annual-body"></tbody>
                             </table>
                             <button onclick="saveAnnualPlanning()">Sauvegarder Planning</button>
                             <button onclick="generateTasksFromPlanning()">Générer Tâches Automatiques</button>
+                            <button onclick="exportAnnualToPDF()">Exporter Planning Annuel en PDF</button>
                         </div>
                     </div>
                 `;
@@ -1023,6 +1028,7 @@
         let selectedTask = null;
         let selectedYear = new Date().getFullYear();
         let isEditing = false;
+        let dueMonthsFilter = false;
 
         function loadTaskList(dept) {
             selectedDept = dept;
@@ -1142,7 +1148,7 @@
             if (!select) return;
             select.innerHTML = '';
             const currentYear = new Date().getFullYear();
-            for (let y = currentYear - 2; y <= currentYear + 2; y++) {
+            for (let y = currentYear - 5; y <= 2030; y++) {
                 const option = document.createElement('option');
                 option.value = y;
                 option.textContent = y;
@@ -1157,17 +1163,30 @@
             if (!body) return;
             body.innerHTML = '';
             db.ref(`preventive/tasks/${selectedDept}/${selectedTaskKey}/annualPlans/${selectedYear}`).once('value', snapshot => {
-                let planning = snapshot.val() || months.map(() => ({ comments: '', responsible: selectedTask.responsable }));
+                let planning = snapshot.val() || months.map(() => ({ statut: '', comments: '', responsible: selectedTask.responsable, checklist: JSON.parse(JSON.stringify(selectedTask.checklist)) }));
                 const dueMonths = calculateDueMonths(selectedTask.debut, selectedTask.frequence, selectedYear);
                 months.forEach((month, index) => {
+                    if (dueMonthsFilter && !dueMonths.includes(index)) return;
+                    if (dueMonths.includes(index) && !planning[index].statut) planning[index].statut = 'En attente';
                     const row = body.insertRow();
+                    row.dataset.monthIndex = index;
                     const monthCell = row.insertCell(0);
                     monthCell.textContent = month;
                     if (dueMonths.includes(index)) monthCell.classList.add('due-month');
-                    const commentsCell = row.insertCell(1);
+                    const statutCell = row.insertCell(1);
+                    const statutSelect = document.createElement('select');
+                    ['En attente', 'En cours', 'Terminé'].forEach(stat => {
+                        const opt = document.createElement('option');
+                        opt.value = stat;
+                        opt.textContent = stat;
+                        if (stat === planning[index].statut) opt.selected = true;
+                        statutSelect.appendChild(opt);
+                    });
+                    statutCell.appendChild(statutSelect);
+                    const commentsCell = row.insertCell(2);
                     commentsCell.innerHTML = `<input type="text" value="${planning[index].comments}">`;
-                    const respCell = row.insertCell(2);
-                    const select = document.createElement('select');
+                    const respCell = row.insertCell(3);
+                    const respSelect = document.createElement('select');
                     db.ref('authorizedUsers').once('value', snap => {
                         snap.forEach(child => {
                             const email = child.val();
@@ -1175,12 +1194,22 @@
                             option.value = email;
                             option.textContent = email;
                             if (email === planning[index].responsible) option.selected = true;
-                            select.appendChild(option);
+                            respSelect.appendChild(option);
                         });
                     });
-                    respCell.appendChild(select);
+                    respCell.appendChild(respSelect);
+                    const checklistCell = row.insertCell(4);
+                    const viewBtn = document.createElement('button');
+                    viewBtn.textContent = 'Voir';
+                    viewBtn.onclick = () => showMonthChecklistModal(index, planning[index].checklist);
+                    checklistCell.appendChild(viewBtn);
                 });
             });
+        }
+
+        function filterDueMonths(checked) {
+            dueMonthsFilter = checked;
+            loadAnnualPlanning();
         }
 
         function calculateDueMonths(startDateStr, frequence, year) {
@@ -1203,14 +1232,31 @@
             return due;
         }
 
+        function showMonthChecklistModal(monthIndex, checklist) {
+            const checklistStr = checklist.map(item => item.text + (item.checked ? ' (checked)' : '')).join(', ');
+            const update = prompt('Checklist pour ce mois: ' + checklistStr + '\nEntrez index à cocher/décocher (ex: 0 pour premier):');
+            if (update) {
+                const index = parseInt(update);
+                if (!isNaN(index) && index < checklist.length) {
+                    checklist[index].checked = !checklist[index].checked;
+                    // Sauvegarde immédiate pour ce mois
+                    db.ref(`preventive/tasks/${selectedDept}/${selectedTaskKey}/annualPlans/${selectedYear}/${monthIndex}/checklist`).set(checklist);
+                    alert('Checklist mise à jour !');
+                }
+            }
+        }
+
         function saveAnnualPlanning() {
             const body = document.getElementById('annual-body');
             if (!body) return;
             const planning = [];
             Array.from(body.rows).forEach(row => {
-                const comments = row.cells[1].querySelector('input').value;
-                const responsible = row.cells[2].querySelector('select').value;
-                planning.push({ comments, responsible });
+                const index = parseInt(row.dataset.monthIndex);
+                const statut = row.cells[1].querySelector('select').value;
+                const comments = row.cells[2].querySelector('input').value;
+                const responsible = row.cells[3].querySelector('select').value;
+                // Checklist est déjà sauvegardée via modal, mais on la préserve
+                planning[index] = { statut, comments, responsible, checklist: planning[index].checklist || JSON.parse(JSON.stringify(selectedTask.checklist)) };
             });
             db.ref(`preventive/tasks/${selectedDept}/${selectedTaskKey}/annualPlans/${selectedYear}`).set(planning);
             alert('Planning annuel sauvegardé !');
@@ -1223,22 +1269,38 @@
                 const refPath = selectedDept === 'maintenance' ? `${selectedDept}/tasks/CMDG` : `${selectedDept}/tasks`;
                 selectedTask.checklist.forEach(item => {
                     dueMonths.forEach(monthIndex => {
-                        const monthData = planning[monthIndex] || { responsible: selectedTask.responsable };
+                        const monthData = planning[monthIndex] || { statut: 'En attente', responsible: selectedTask.responsable, comments: '', checklist: [] };
+                        if (monthData.statut !== 'En attente' && monthData.statut !== 'En cours') return; // Skip si Terminé
                         const nextDate = new Date(selectedYear, monthIndex, 1); // Premier du mois
                         db.ref(refPath).push({
                             tache: `${selectedTask.tache} (Préventive) - ${item.text} - ${months[monthIndex]}`,
-                            statut: 'En attente',
+                            statut: monthData.statut,
                             date: nextDate.toISOString().split('T')[0],
                             dateButoir: nextDate.toISOString().split('T')[0],
-                            responsable: monthData.responsible,
+                            responsable: monthData.responsable,
                             criticite: '3',
                             comments: [monthData.comments],
-                            checklist: [{ text: item.text, checked: false }]
+                            checklist: monthData.checklist
                         });
                     });
                 });
-                alert('Tâches générées pour les mois dus !');
+                alert('Tâches générées pour les mois dus (non terminés) !');
             });
+        }
+
+        function exportAnnualToPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            doc.text(`${selectedTask.tache} - Planning Annuel ${selectedYear}`, 10, 10);
+            let y = 20;
+            const rows = document.querySelectorAll('#annual-body tr');
+            rows.forEach(row => {
+                const cells = row.querySelectorAll('td');
+                const isDue = row.querySelector('.due-month') ? ' (Due)' : '';
+                doc.text(`${cells[0].textContent}${isDue} - Statut: ${cells[1].querySelector('select').value} - Commentaires: ${cells[2].querySelector('input').value} - Responsable: ${cells[3].querySelector('select').value}`, 10, y);
+                y += 10;
+            });
+            doc.save(`${selectedTask.tache}_annual_${selectedYear}.pdf`);
         }
 
         // Initialisation
