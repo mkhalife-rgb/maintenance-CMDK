@@ -25,6 +25,7 @@
         #error-message { color: red; }
         #tasksChart { max-width: 400px; margin: 20px auto; }
         .no-data { text-align: center; color: #666; padding: 10px; }
+        #logo { position: fixed; bottom: 10px; right: 10px; width: 100px; opacity: 0.8; z-index: 1000; } /* Logo en bas à droite */
         @media (max-width: 600px) { nav { flex-direction: column; } }
     </style>
     <!-- Firebase SDK -->
@@ -49,6 +50,8 @@
     <nav id="nav-bar"></nav>
     
     <main id="main-content"></main>
+    
+    <img id="logo" src="logo.png" alt="Eastern Medical ISO 9001:2015 Certifié"> <!-- Logo ajouté ici -->
     
     <script>
         const firebaseConfig = {
@@ -184,7 +187,7 @@
                 <div id="completed-tasks" class="tab-content">
                     <h2>Tâches Terminées</h2>
                     <table id="table-completed">
-                        <thead><tr><th>Tâche</th><th>Date</th></tr></thead>
+                        <thead><tr><th>Tâche</th><th>Statut</th><th>Date</th><th>Responsable</th><th>Criticité</th></tr></thead>
                         <tbody></tbody>
                     </table>
                     <button type="button" onclick="effacerToutesDonneesTerminees()">Effacer Toutes les Tâches Terminées</button>
@@ -204,10 +207,19 @@
                                 <option value="En attente">En attente</option>
                             </select>
                             <input type="date" id="date-tasks" required>
+                            <input type="text" id="responsable-tasks" placeholder="Nom du responsable" required>
+                            <select id="criticite-tasks" required>
+                                <option value="">Criticité (1-5)</option>
+                                <option value="1">1 (Faible)</option>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                                <option value="5">5 (Critique)</option>
+                            </select>
                             <button type="button" onclick="ajouterTache('tasks')">Ajouter Tâche</button>
                         </form>
                         <table id="table-tasks">
-                            <thead><tr><th>Tâche</th><th>Statut</th><th>Date</th><th>Actions</th></tr></thead>
+                            <thead><tr><th>Tâche</th><th>Statut</th><th>Date</th><th>Responsable</th><th>Criticité</th><th>Actions</th></tr></thead>
                             <tbody></tbody>
                         </table>
                         <button onclick="exporterDonnees('tasks')">Exporter en CSV</button>
@@ -227,10 +239,19 @@
                                     <option value="En attente">En attente</option>
                                 </select>
                                 <input type="date" id="date-${site}" required>
+                                <input type="text" id="responsable-${site}" placeholder="Nom du responsable" required>
+                                <select id="criticite-${site}" required>
+                                    <option value="">Criticité (1-5)</option>
+                                    <option value="1">1 (Faible)</option>
+                                    <option value="2">2</option>
+                                    <option value="3">3</option>
+                                    <option value="4">4</option>
+                                    <option value="5">5 (Critique)</option>
+                                </select>
                                 <button type="button" onclick="ajouterTache('${site}')">Ajouter Tâche</button>
                             </form>
                             <table id="table-${site}">
-                                <thead><tr><th>Tâche</th><th>Statut</th><th>Date</th><th>Actions</th></tr></thead>
+                                <thead><tr><th>Tâche</th><th>Statut</th><th>Date</th><th>Responsable</th><th>Criticité</th><th>Actions</th></tr></thead>
                                 <tbody></tbody>
                             </table>
                             <button onclick="exporterDonnees('${site}')">Exporter en CSV</button>
@@ -319,51 +340,96 @@
             const tache = document.getElementById(`tache-${siteId}`).value;
             const statut = document.getElementById(`statut-${siteId}`).value;
             const date = document.getElementById(`date-${siteId}`).value;
-            if (!tache || !statut || !date) return alert('Veuillez remplir tous les champs.');
+            const responsable = document.getElementById(`responsable-${siteId}`).value;
+            const criticite = document.getElementById(`criticite-${siteId}`).value;
+            if (!tache || !statut || !date || !responsable || !criticite) return alert('Veuillez remplir tous les champs.');
             const refPath = currentSection === 'maintenance' ? `${currentSection}/tasks/${siteId}` : `${currentSection}/tasks`;
-            db.ref(refPath).push({ tache, statut, date });
+            db.ref(refPath).push({ tache, statut, date, responsable, criticite });
             document.getElementById(`form-${siteId}`).reset();
             alert('Tâche ajoutée !');
             openTab('dashboard');
         }
 
-        function showStatusSelect(siteId, key, statutCell, currentStatut, tache, date) {
-            const select = document.createElement('select');
+        function showEditForm(siteId, key, row, item) {
+            const tacheCell = row.cells[0];
+            const statutCell = row.cells[1];
+            const dateCell = row.cells[2];
+            const respCell = row.cells[3];
+            const critCell = row.cells[4];
+            const actionsCell = row.cells[5];
+
+            // Inputs pour édition
+            const tacheInput = document.createElement('input');
+            tacheInput.type = 'text';
+            tacheInput.value = item.tache;
+            tacheCell.innerHTML = '';
+            tacheCell.appendChild(tacheInput);
+
+            const statutSelect = document.createElement('select');
             ['En cours', 'Terminée', 'En attente'].forEach(opt => {
                 const option = document.createElement('option');
                 option.value = opt;
                 option.textContent = opt;
-                option.selected = opt === currentStatut;
-                select.appendChild(option);
+                option.selected = opt === item.statut;
+                statutSelect.appendChild(option);
             });
+            statutCell.innerHTML = '';
+            statutCell.appendChild(statutSelect);
+
+            const dateInput = document.createElement('input');
+            dateInput.type = 'date';
+            dateInput.value = item.date;
+            dateCell.innerHTML = '';
+            dateCell.appendChild(dateInput);
+
+            const respInput = document.createElement('input');
+            respInput.type = 'text';
+            respInput.value = item.responsable || 'Non assigné';
+            respCell.innerHTML = '';
+            respCell.appendChild(respInput);
+
+            const critSelect = document.createElement('select');
+            [1, 2, 3, 4, 5].forEach(opt => {
+                const option = document.createElement('option');
+                option.value = opt;
+                option.textContent = opt;
+                option.selected = opt == (item.criticite || 3);
+                critSelect.appendChild(option);
+            });
+            critCell.innerHTML = '';
+            critCell.appendChild(critSelect);
+
+            // Bouton Sauvegarder
+            actionsCell.innerHTML = '';
             const saveBtn = document.createElement('button');
             saveBtn.textContent = 'Sauvegarder';
             saveBtn.onclick = () => {
-                const newStatut = select.value;
-                if (newStatut !== currentStatut) {
-                    const refPath = currentSection === 'maintenance' ? `${currentSection}/tasks/${siteId}/${key}` : `${currentSection}/tasks/${key}`;
-                    db.ref(refPath).update({ statut: newStatut });
-                    if (newStatut === 'Terminée') {
-                        db.ref(`${currentSection}/completed-tasks`).push({ tache, date });
-                        db.ref(refPath).remove();
-                        alert('Tâche mise à "Terminée" et déplacée.');
-                    } else {
-                        alert('Statut mis à jour.');
-                    }
-                    updateDashboard();
+                const newData = {
+                    tache: tacheInput.value,
+                    statut: statutSelect.value,
+                    date: dateInput.value,
+                    responsable: respInput.value,
+                    criticite: critSelect.value
+                };
+                const refPath = currentSection === 'maintenance' ? `${currentSection}/tasks/${siteId}/${key}` : `${currentSection}/tasks/${key}`;
+                db.ref(refPath).update(newData);
+                if (newData.statut === 'Terminée') {
+                    db.ref(`${currentSection}/completed-tasks`).push(newData);
+                    db.ref(refPath).remove();
+                    alert('Tâche mise à "Terminée" et déplacée.');
+                } else {
+                    alert('Tâche mise à jour.');
                 }
-                statutCell.innerHTML = newStatut;
+                updateDashboard();
             };
-            statutCell.innerHTML = '';
-            statutCell.appendChild(select);
-            statutCell.appendChild(saveBtn);
+            actionsCell.appendChild(saveBtn);
         }
 
-        function supprimerTache(siteId, key, tache, statut, date) {
+        function supprimerTache(siteId, key, item) {
             if (!isAuthorized()) return alert('Non autorisé.');
             const refPath = currentSection === 'maintenance' ? `${currentSection}/tasks/${siteId}/${key}` : `${currentSection}/tasks/${key}`;
-            if (statut === 'Terminée') {
-                db.ref(`${currentSection}/completed-tasks`).push({ tache, date });
+            if (item.statut === 'Terminée') {
+                db.ref(`${currentSection}/completed-tasks`).push(item);
             }
             db.ref(refPath).remove();
             alert('Tâche supprimée ou déplacée.');
@@ -380,29 +446,31 @@
                 if (!snapshot.exists() || snapshot.numChildren() === 0) {
                     const row = tableBody.insertRow();
                     const cell = row.insertCell(0);
-                    cell.colSpan = (tabId === 'completed-tasks' ? 2 : 4);
+                    cell.colSpan = (tabId === 'completed-tasks' ? 5 : 6);
                     cell.classList.add('no-data');
                     cell.textContent = 'Aucune tâche pour le moment.';
                     return;
                 }
                 snapshot.forEach(child => {
                     const item = child.val();
+                    // Valeurs par défaut pour rétrocompatibilité
+                    item.responsable = item.responsable || 'Non assigné';
+                    item.criticite = item.criticite || 3;
                     const row = tableBody.insertRow();
                     row.insertCell(0).textContent = item.tache;
-                    if (tabId === 'completed-tasks') {
-                        row.insertCell(1).textContent = item.date;
-                    } else {
-                        const statutCell = row.insertCell(1);
-                        statutCell.textContent = item.statut;
-                        row.insertCell(2).textContent = item.date;
-                        const actionsCell = row.insertCell(3);
+                    row.insertCell(1).textContent = item.statut;
+                    row.insertCell(2).textContent = item.date;
+                    row.insertCell(3).textContent = item.responsable;
+                    row.insertCell(4).textContent = item.criticite;
+                    if (tabId !== 'completed-tasks') {
+                        const actionsCell = row.insertCell(5);
                         const editBtn = document.createElement('button');
-                        editBtn.textContent = 'Modifier Statut';
-                        editBtn.onclick = () => showStatusSelect(tabId, child.key, statutCell, item.statut, item.tache, item.date);
+                        editBtn.textContent = 'Modifier';
+                        editBtn.onclick = () => showEditForm(tabId, child.key, row, item);
                         actionsCell.appendChild(editBtn);
                         const deleteBtn = document.createElement('button');
                         deleteBtn.textContent = 'Supprimer';
-                        deleteBtn.onclick = () => supprimerTache(tabId, child.key, item.tache, item.statut, item.date);
+                        deleteBtn.onclick = () => supprimerTache(tabId, child.key, item);
                         actionsCell.appendChild(deleteBtn);
                     }
                 });
@@ -421,10 +489,10 @@
         function exporterDonnees(siteId) {
             const refPath = currentSection === 'maintenance' ? `${currentSection}/tasks/${siteId}` : `${currentSection}/tasks`;
             db.ref(refPath).once('value', snapshot => {
-                let csv = 'Tâche,Statut,Date\n';
+                let csv = 'Tâche,Statut,Date,Responsable,Criticité\n';
                 snapshot.forEach(child => {
                     const item = child.val();
-                    csv += `${item.tache},${item.statut},${item.date}\n`;
+                    csv += `${item.tache},${item.statut},${item.date},${item.responsable || 'Non assigné'},${item.criticite || 3}\n`;
                 });
                 const blob = new Blob([csv], { type: 'text/csv' });
                 const a = document.createElement('a');
