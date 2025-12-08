@@ -34,8 +34,13 @@
         .comment-section { margin-top: 10px; }
         .log-entry { border-bottom: 1px solid #ddd; padding: 5px; }
         .priority-alert { color: red; font-weight: bold; }
-        .sub-tab { margin: 10px 0; border: 1px solid #ddd; padding: 10px; border-radius: 5px; }
-        .sub-tab h3 { cursor: pointer; }
+        .checkbox-table td { vertical-align: middle; }
+        .checkbox-table input[type="checkbox"] { transform: scale(1.5); margin-right: 10px; }
+        #dept-select { margin: 10px 0; width: 200px; }
+        #task-list { margin-top: 20px; }
+        .task-item { cursor: pointer; padding: 10px; border: 1px solid #ddd; margin-bottom: 5px; border-radius: 5px; }
+        .task-item:hover { background-color: #f0f0f0; }
+        #task-detail { display: none; margin-top: 20px; border: 1px solid #ddd; padding: 10px; border-radius: 5px; }
         @media (max-width: 600px) { nav { flex-direction: column; } }
     </style>
     <!-- Firebase SDK -->
@@ -94,6 +99,11 @@
             maintenance: ['Climatiseurs', 'Électricité', 'Plomberie', 'Ascenseurs'],
             it: ['Sauvegardes serveurs', 'Mises à jour logiciels', 'Vérification réseaux', 'Sécurité firewalls'],
             biomed: ['Calibration équipements', 'Stérilisation', 'Tests de sécurité', 'Vérification batteries']
+        };
+        const checklistSuggestions = {
+            'Climatiseurs': 'Vérifier filtres, Nettoyer conduits, Tester refroidissement, Inspecter fuites',
+            'Électricité': 'Vérifier câblages, Tester disjoncteurs, Contrôler éclairage',
+            // Ajoute plus pour d'autres templates si besoin
         };
 
         auth.onAuthStateChanged(user => {
@@ -179,7 +189,7 @@
         function loadInterface() {
             const main = document.getElementById('main-content');
             main.innerHTML = '';
-            // Tabs communs pour toutes les sections
+            // Tabs communs
             main.innerHTML += `
                 <div id="dashboard" class="tab-content">
                     <h2>Tableau de Bord</h2>
@@ -305,46 +315,53 @@
                 main.innerHTML += `
                     <div id="preventive-tab" class="tab-content active">
                         <h2>Maintenance Préventive</h2>
-                        <p>Gérez les tâches préventives par département de manière intelligente. Ajoutez des tableaux récurrents et générez automatiquement des tâches.</p>
-                        ${preventiveDepts.map(dept => `
-                            <div class="sub-tab" id="preventive-${dept}">
-                                <h3 onclick="toggleSubTab('${dept}')">${dept.charAt(0).toUpperCase() + dept.slice(1)}</h3>
-                                <div id="preventive-content-${dept}" style="display:none;">
-                                    <h4>Tâches Préventives Courantes (cliquez pour pré-remplir)</h4>
-                                    <ul id="preventive-list-${dept}"></ul>
-                                    <button onclick="addPreventiveTable('${dept}')">Ajouter un Tableau Préventif</button>
-                                    <button onclick="generatePreventiveTasks('${dept}')">Générer Tâches Automatiques</button>
-                                    <div id="preventive-form-${dept}" style="display:none;">
-                                        <form>
-                                            <input type="text" id="prev-tache-${dept}" placeholder="Nom du tableau (ex: Climatiseurs Mensuels)" required>
-                                            <select id="prev-frequence-${dept}" required>
-                                                <option value="">Fréquence</option>
-                                                <option value="daily">Quotidien</option>
-                                                <option value="weekly">Hebdomadaire</option>
-                                                <option value="monthly">Mensuel</option>
-                                            </select>
-                                            <input type="date" id="prev-debut-${dept}" placeholder="Date de début" required>
-                                            <select id="prev-responsable-${dept}" required>
-                                                <option value="">Responsable</option>
-                                            </select>
-                                            <textarea id="prev-details-${dept}" placeholder="Détails des tâches (séparées par virgules)"></textarea>
-                                            <button type="button" onclick="savePreventiveTable('${dept}')">Sauvegarder Tableau</button>
-                                        </form>
-                                    </div>
-                                    <table id="prev-table-${dept}">
-                                        <thead><tr><th>Tableau</th><th>Fréquence</th><th>Début</th><th>Responsable</th><th>Détails</th><th>Actions</th></tr></thead>
-                                        <tbody></tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        `).join('')}
+                        <p>Sélectionnez un département pour gérer les tâches préventives.</p>
+                        <select id="dept-select" onchange="loadTaskList(this.value)">
+                            <option value="">Choisissez un département</option>
+                            <option value="maintenance">Maintenance</option>
+                            <option value="it">IT</option>
+                            <option value="biomed">Biomed</option>
+                        </select>
+                        <button id="add-task-btn" style="display:none;" onclick="showAddTaskForm()">Ajouter une Tâche Préventive</button>
+                        <div id="add-task-form" style="display:none;">
+                            <h3>Ajouter Tâche Préventive</h3>
+                            <form>
+                                <input type="text" id="new-task-name" placeholder="Nom de la tâche (ex: Climatiseurs)" required>
+                                <select id="new-task-freq" required>
+                                    <option value="">Fréquence</option>
+                                    <option value="daily">Quotidien</option>
+                                    <option value="weekly">Hebdomadaire</option>
+                                    <option value="monthly">Mensuel</option>
+                                    <option value="bimonthly">Bimestriel (chaque 2 mois)</option>
+                                    <option value="trimonthly">Trimestriel (chaque 3 mois)</option>
+                                    <option value="quadmonthly">Quadrimestriel (chaque 4 mois)</option>
+                                    <option value="semiannual">Semestriel (chaque 6 mois)</option>
+                                    <option value="annual">Annuel</option>
+                                    <option value="biannual">Bi-annuel (chaque 2 ans)</option>
+                                </select>
+                                <input type="date" id="new-task-start" placeholder="Date de début" required>
+                                <select id="new-task-resp" required>
+                                    <option value="">Responsable</option>
+                                </select>
+                                <textarea id="new-task-checklist" placeholder="Checklist (séparée par virgules, ex: Vérifier filtres, Nettoyer)"></textarea>
+                                <button type="button" onclick="saveNewTask()">Sauvegarder</button>
+                            </form>
+                            <h4>Suggestions de Tâches (cliquez pour pré-remplir)</h4>
+                            <ul id="task-templates"></ul>
+                        </div>
+                        <div id="task-list"></div>
+                        <div id="task-detail">
+                            <h3 id="detail-title"></h3>
+                            <table class="checkbox-table">
+                                <thead><tr><th>Cocher</th><th>Sous-tâche</th><th>Date Validation</th><th>Notes</th></tr></thead>
+                                <tbody id="detail-body"></tbody>
+                            </table>
+                            <button onclick="generateTasksFromDetail()">Générer Tâches Automatiques</button>
+                            <button onclick="exportChecklistToPDF()">Exporter en PDF</button>
+                        </div>
                     </div>
                 `;
-                preventiveDepts.forEach(dept => {
-                    loadPreventiveTemplates(dept);
-                    loadPrestatairesForPreventive(dept);
-                    loadPreventiveTables(dept);
-                });
+                // Pas d'appel initial ici ; les fonctions sont appelées via onchange/clics
             } else if (currentSection !== 'maintenance') {
                 main.innerHTML += `
                     <div id="tasks" class="tab-content">
@@ -418,7 +435,6 @@
             if (currentSection !== 'planning' && currentSection !== 'preventive') chargerTousDonnees();
             if (currentSection === 'preventive') openTab('preventive-tab');
             else openTab('dashboard');
-            console.log('Interface loaded for section:', currentSection);
             checkAdminAndShowElements();
             loadAuditLogs();
         }
@@ -464,13 +480,9 @@
         function openTab(tabId) {
             document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
             const tab = document.getElementById(tabId);
-            if (tab) {
-                tab.classList.add('active');
-            }
+            if (tab) tab.classList.add('active');
             if (tabId === 'userManagement') updateUsersTable();
-            if (maintenanceSites.includes(tabId) || tabId === 'tasks' || tabId === 'completed-tasks') {
-                chargerDonnees(tabId);
-            }
+            if (maintenanceSites.includes(tabId) || tabId === 'tasks' || tabId === 'completed-tasks') chargerDonnees(tabId);
             if (tabId === 'dashboard') updateDashboard();
             if (tabId === 'planning-tab') loadPlanning();
             if (tabId === 'audit-logs') loadAuditLogs();
@@ -552,7 +564,7 @@
             const checklist = checklistStr ? checklistStr.split(',').map(item => ({ text: item.trim(), checked: false })) : [];
             if (!tache || !statut || !date || !criticite) return alert('Veuillez remplir les champs obligatoires.');
             const refPath = currentSection === 'maintenance' ? `${currentSection}/tasks/${siteId}` : `${currentSection}/tasks`;
-            const newTaskRef = db.ref(refPath).push({ tache, statut, date, dateButoir, responsable, criticite, comments: [], checklist, signature: '' });
+            db.ref(refPath).push({ tache, statut, date, dateButoir, responsable, criticite, comments: [], checklist, signature: '' });
             logAction('Ajout tâche', tache);
             const form = document.getElementById(`form-${siteId}`);
             if (form) form.reset();
@@ -637,13 +649,10 @@
             let refPath = tabId === 'completed-tasks' ? `${currentSection}/completed-tasks` : (currentSection === 'maintenance' ? `${currentSection}/tasks/${tabId}` : `${currentSection}/tasks`);
             const tableId = tabId === 'completed-tasks' ? 'table-completed' : `table-${tabId}`;
             const tableBody = document.querySelector(`#${tableId} tbody`);
-            if (!tableBody) {
-                console.error('Table body not found for:', tableId);
-                return;
-            }
+            if (!tableBody) return;
             db.ref(refPath).on('value', snapshot => {
                 tableBody.innerHTML = '';
-                if (!snapshot.exists() || snapshot.numChildren() === 0) {
+                if (!snapshot.exists()) {
                     const row = tableBody.insertRow();
                     const cell = row.insertCell(0);
                     cell.colSpan = tabId === 'completed-tasks' ? 7 : 9;
@@ -691,7 +700,6 @@
                         actionsCell.appendChild(deleteBtn);
                     }
                 });
-                console.log('Data loaded for tab:', tabId, 'in section:', currentSection);
             });
         }
 
@@ -891,7 +899,7 @@
 
         function sendAutoReport() {
             alert('Rapport automatique envoyé (simulation) - Téléchargement du rapport.');
-            generateReports(); // Simulation d'envoi
+            generateReports();
         }
 
         // Fonctions pour Planning
@@ -900,16 +908,17 @@
 
         function loadPrestataires() {
             const select = document.getElementById('prestataire-select');
-            if (!select) return;
-            db.ref('authorizedUsers').once('value', snapshot => {
-                snapshot.forEach(child => {
-                    const email = child.val();
-                    const option = document.createElement('option');
-                    option.value = email;
-                    option.textContent = email;
-                    select.appendChild(option);
+            if (select) {
+                db.ref('authorizedUsers').once('value', snapshot => {
+                    snapshot.forEach(child => {
+                        const email = child.val();
+                        const option = document.createElement('option');
+                        option.value = email;
+                        option.textContent = email;
+                        select.appendChild(option);
+                    });
                 });
-            });
+            }
         }
 
         function checkAdminAndShowElements() {
@@ -920,20 +929,13 @@
         }
 
         function loadPlanning() {
-            const prestataireSelect = document.getElementById('prestataire-select');
-            if (!prestataireSelect) return;
-            const prestataire = prestataireSelect.value;
+            const prestataire = document.getElementById('prestataire-select').value;
             const tableBody = document.querySelector('#table-planning tbody');
-            if (!tableBody) return;
+            if (!tableBody || !prestataire) return;
             tableBody.innerHTML = '';
-            if (!prestataire) {
-                tableBody.innerHTML = '<tr><td colspan="9" class="no-data">Sélectionnez un prestataire pour voir son planning.</td></tr>';
-                return;
-            }
             const weekEnd = new Date(currentWeekStart);
             weekEnd.setDate(weekEnd.getDate() + 6);
-            const weekDisplay = document.getElementById('week-display');
-            if (weekDisplay) weekDisplay.textContent = `Semaine du ${currentWeekStart.toLocaleDateString()} au ${weekEnd.toLocaleDateString()}`;
+            document.getElementById('week-display').textContent = `Semaine du ${currentWeekStart.toLocaleDateString()} au ${weekEnd.toLocaleDateString()}`;
             const today = new Date();
 
             allSections.forEach(section => {
@@ -1053,14 +1055,47 @@
             loadPlanning();
         }
 
-        // Nouvelles fonctions pour Maintenance Préventive
-        function toggleSubTab(dept) {
-            const content = document.getElementById(`preventive-content-${dept}`);
-            if (content) content.style.display = content.style.display === 'none' ? 'block' : 'none';
+        // Fonctions pour Maintenance Préventive (reconfigurées)
+        let selectedDept = '';
+        let selectedTaskKey = '';
+        let selectedTask = null;
+
+        function loadTaskList(dept) {
+            selectedDept = dept;
+            const addBtn = document.getElementById('add-task-btn');
+            const taskList = document.getElementById('task-list');
+            const detail = document.getElementById('task-detail');
+            if (addBtn) addBtn.style.display = dept ? 'inline-block' : 'none';
+            if (taskList) taskList.innerHTML = '';
+            if (detail) detail.style.display = 'none';
+            if (!dept || !taskList) return;
+            taskList.innerHTML = '<h3>Tâches Préventives pour ' + dept.charAt(0).toUpperCase() + dept.slice(1) + '</h3>';
+            db.ref(`preventive/tasks/${dept}`).on('value', snapshot => {
+                taskList.innerHTML = '<h3>Tâches Préventives pour ' + dept.charAt(0).toUpperCase() + dept.slice(1) + '</h3>';
+                if (!snapshot.exists()) {
+                    taskList.innerHTML += '<p class="no-data">Aucune tâche préventive.</p>';
+                    return;
+                }
+                snapshot.forEach(child => {
+                    const item = child.val();
+                    const div = document.createElement('div');
+                    div.classList.add('task-item');
+                    div.textContent = `${item.tache} (${item.frequence})`;
+                    div.onclick = () => showTaskDetail(child.key, item, dept);
+                    taskList.appendChild(div);
+                });
+            });
         }
 
-        function loadPreventiveTemplates(dept) {
-            const list = document.getElementById(`preventive-list-${dept}`);
+        function showAddTaskForm() {
+            const form = document.getElementById('add-task-form');
+            if (form) form.style.display = 'block';
+            loadTaskTemplates(selectedDept);
+            loadPrestatairesForPreventive('new-task-resp');
+        }
+
+        function loadTaskTemplates(dept) {
+            const list = document.getElementById('task-templates');
             if (!list) return;
             list.innerHTML = '';
             preventiveTemplates[dept].forEach(template => {
@@ -1068,17 +1103,18 @@
                 li.textContent = template;
                 li.style.cursor = 'pointer';
                 li.onclick = () => {
-                    const input = document.getElementById(`prev-tache-${dept}`);
-                    if (input) input.value = template;
+                    document.getElementById('new-task-name').value = template;
+                    document.getElementById('new-task-checklist').value = checklistSuggestions[template] || '';
                 };
                 list.appendChild(li);
             });
         }
 
-        function loadPrestatairesForPreventive(dept) {
-            const select = document.getElementById(`prev-responsable-${dept}`);
+        function loadPrestatairesForPreventive(selectId) {
+            const select = document.getElementById(selectId || 'new-task-resp');
             if (!select) return;
             db.ref('authorizedUsers').once('value', snapshot => {
+                select.innerHTML = '<option value="">Responsable</option>';
                 snapshot.forEach(child => {
                     const email = child.val();
                     const option = document.createElement('option');
@@ -1089,89 +1125,104 @@
             });
         }
 
-        function addPreventiveTable(dept) {
-            const form = document.getElementById(`preventive-form-${dept}`);
-            if (form) form.style.display = 'block';
+        function saveNewTask() {
+            const tache = document.getElementById('new-task-name').value;
+            const frequence = document.getElementById('new-task-freq').value;
+            const debut = document.getElementById('new-task-start').value;
+            const responsable = document.getElementById('new-task-resp').value;
+            const checklistStr = document.getElementById('new-task-checklist').value;
+            const checklist = checklistStr ? checklistStr.split(',').map(d => ({ text: d.trim(), checked: false, lastValidated: '', notes: '' })) : [];
+            if (!tache || !frequence || !debut || !responsable) return alert('Remplissez tous les champs.');
+            db.ref(`preventive/tasks/${selectedDept}`).push({ tache, frequence, debut, responsable, checklist });
+            logAction('Ajout tâche préventive', `${selectedDept} - ${tache}`);
+            document.getElementById('add-task-form').style.display = 'none';
+            loadTaskList(selectedDept);
+            alert('Tâche ajoutée !');
         }
 
-        function savePreventiveTable(dept) {
-            const tache = document.getElementById(`prev-tache-${dept}`).value;
-            const frequence = document.getElementById(`prev-frequence-${dept}`).value;
-            const debut = document.getElementById(`prev-debut-${dept}`).value;
-            const responsable = document.getElementById(`prev-responsable-${dept}`).value;
-            const detailsStr = document.getElementById(`prev-details-${dept}`).value;
-            const details = detailsStr ? detailsStr.split(',').map(d => d.trim()) : [];
-            if (!tache || !frequence || !debut || !responsable) return alert('Remplissez tous les champs obligatoires.');
-            db.ref(`preventive/tasks/${dept}`).push({ tache, frequence, debut, responsable, details });
-            logAction('Ajout tableau préventif', `${dept} - ${tache}`);
-            const form = document.getElementById(`preventive-form-${dept}`);
-            if (form) form.style.display = 'none';
-            loadPreventiveTables(dept);
-            alert('Tableau préventif ajouté !');
+        function showTaskDetail(key, task, dept) {
+            selectedDept = dept;
+            selectedTaskKey = key;
+            selectedTask = task;
+            const detail = document.getElementById('task-detail');
+            const title = document.getElementById('detail-title');
+            const body = document.getElementById('detail-body');
+            if (!detail || !title || !body) return;
+            title.textContent = `${task.tache} - Fréquence: ${task.frequence} - Début: ${task.debut} - Responsable: ${task.responsable}`;
+            body.innerHTML = '';
+            task.checklist.forEach((item, index) => {
+                const row = body.insertRow();
+                const checkCell = row.insertCell(0);
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.checked = item.checked;
+                checkbox.onclick = () => updateCheckbox(dept, key, index, checkbox.checked);
+                checkCell.appendChild(checkbox);
+                row.insertCell(1).textContent = item.text;
+                row.insertCell(2).textContent = item.lastValidated || 'Non validé';
+                const notesCell = row.insertCell(3);
+                notesCell.innerHTML = `<input type="text" value="${item.notes || ''}" onblur="updateNotes('${dept}', '${key}', ${index}, this.value)">`;
+            });
+            detail.style.display = 'block';
         }
 
-        function loadPreventiveTables(dept) {
-            const tableBody = document.querySelector(`#prev-table-${dept} tbody`);
-            if (!tableBody) return;
-            tableBody.innerHTML = '';
-            db.ref(`preventive/tasks/${dept}`).on('value', snapshot => {
-                if (!snapshot.exists()) {
-                    tableBody.innerHTML = '<tr><td colspan="6" class="no-data">Aucun tableau préventif pour le moment.</td></tr>';
-                    return;
-                }
-                snapshot.forEach(child => {
-                    const item = child.val();
-                    const row = tableBody.insertRow();
-                    row.insertCell(0).textContent = item.tache;
-                    row.insertCell(1).textContent = item.frequence;
-                    row.insertCell(2).textContent = item.debut;
-                    row.insertCell(3).textContent = item.responsable;
-                    row.insertCell(4).textContent = item.details.join(', ');
-                    const actionsCell = row.insertCell(5);
-                    const deleteBtn = document.createElement('button');
-                    deleteBtn.textContent = 'Supprimer';
-                    deleteBtn.onclick = () => {
-                        db.ref(`preventive/tasks/${dept}/${child.key}`).remove();
-                        logAction('Suppression tableau préventif', item.tache);
-                        loadPreventiveTables(dept);
-                    };
-                    actionsCell.appendChild(deleteBtn);
-                });
+        function updateCheckbox(dept, key, index, checked) {
+            const refPath = `preventive/tasks/${dept}/${key}/checklist/${index}`;
+            db.ref(refPath).update({ checked, lastValidated: checked ? new Date().toLocaleDateString() : '' });
+            logAction('Mise à jour checkbox', `Dept: ${dept}, Task: ${key}, Item: ${index}`);
+            // Recharger le détail pour mise à jour UI
+            db.ref(`preventive/tasks/${dept}/${key}`).once('value', snapshot => {
+                showTaskDetail(key, snapshot.val(), dept);
             });
         }
 
-        function generatePreventiveTasks(dept) {
-            db.ref(`preventive/tasks/${dept}`).once('value', snapshot => {
-                if (!snapshot.exists()) return alert('Aucun tableau à générer.');
-                snapshot.forEach(child => {
-                    const item = child.val();
-                    const startDate = new Date(item.debut);
-                    const today = new Date();
-                    let nextDate = new Date(startDate);
-                    // Avancer jusqu'à la prochaine date future
-                    while (nextDate <= today) {
-                        if (item.frequence === 'daily') nextDate.setDate(nextDate.getDate() + 1);
-                        else if (item.frequence === 'weekly') nextDate.setDate(nextDate.getDate() + 7);
-                        else if (item.frequence === 'monthly') nextDate.setMonth(nextDate.getMonth() + 1);
-                    }
-                    // Générer tâches dans la section correspondante
-                    const refPath = dept === 'maintenance' ? `${dept}/tasks/CMDG` : `${dept}/tasks`; // Par défaut à CMDG pour maintenance; ajuste si besoin
-                    item.details.forEach(detail => {
-                        db.ref(refPath).push({
-                            tache: `${item.tache} (Préventive) - ${detail}`,
-                            statut: 'En attente',
-                            date: nextDate.toISOString().split('T')[0],
-                            dateButoir: nextDate.toISOString().split('T')[0],
-                            responsable: item.responsable,
-                            criticite: '3', // Défaut moyen
-                            comments: [],
-                            checklist: []
-                        });
-                    });
+        function updateNotes(dept, key, index, notes) {
+            const refPath = `preventive/tasks/${dept}/${key}/checklist/${index}`;
+            db.ref(refPath).update({ notes });
+            logAction('Mise à jour notes', `Dept: ${dept}, Task: ${key}, Item: ${index}`);
+        }
+
+        function generateTasksFromDetail() {
+            if (!selectedTask) return;
+            const startDate = new Date(selectedTask.debut);
+            const today = new Date();
+            let nextDate = new Date(startDate);
+            const freqMap = {
+                daily: 1, weekly: 7, monthly: 30, bimonthly: 60, trimonthly: 90, quadmonthly: 120, 
+                semiannual: 182, annual: 365, biannual: 730
+            };
+            const daysToAdd = freqMap[selectedTask.frequence] || 30;
+            while (nextDate <= today) {
+                nextDate = new Date(nextDate.getTime() + daysToAdd * 24 * 60 * 60 * 1000);
+            }
+            const refPath = selectedDept === 'maintenance' ? `${selectedDept}/tasks/CMDG` : `${selectedDept}/tasks`; // Défaut CMDG pour maintenance
+            selectedTask.checklist.forEach(item => {
+                db.ref(refPath).push({
+                    tache: `${selectedTask.tache} (Préventive) - ${item.text}`,
+                    statut: 'En attente',
+                    date: nextDate.toISOString().split('T')[0],
+                    dateButoir: nextDate.toISOString().split('T')[0],
+                    responsable: selectedTask.responsable,
+                    criticite: '3',
+                    comments: [],
+                    checklist: [{ text: item.text, checked: false }]
                 });
-                alert('Tâches préventives générées et ajoutées aux sections/tasks !');
-                logAction('Génération tâches préventives', dept);
             });
+            alert('Tâches générées et ajoutées aux sections !');
+            logAction('Génération tâches préventives', selectedTask.tache);
+        }
+
+        function exportChecklistToPDF() {
+            if (!selectedTask) return;
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            doc.text(`${selectedTask.tache} - Checklist Préventive`, 10, 10);
+            let y = 20;
+            selectedTask.checklist.forEach(item => {
+                doc.text(`${item.text} [${item.checked ? 'Coché' : 'Non coché'}] - Validé le: ${item.lastValidated || 'N/A'} - Notes: ${item.notes || 'Aucune'}`, 10, y);
+                y += 10;
+            });
+            doc.save(`${selectedTask.tache}_checklist.pdf`);
         }
 
         // Initialisation
