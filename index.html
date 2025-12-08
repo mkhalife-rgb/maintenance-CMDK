@@ -1225,7 +1225,7 @@
                     });  
                     respCell.appendChild(respSelect);  
                     const commentsCell = row.insertCell(2);  
-                    commentsCell.innerHTML = `<input type="text" value="${planning[index].comments}">`;  
+                    commentsCell.innerHTML = `<input type="text" value="${planning[index].comments || ''}">`;  
                     const checkboxCell = row.insertCell(3);  
                     const checkbox = document.createElement('input');  
                     checkbox.type = 'checkbox';  
@@ -1234,8 +1234,8 @@
                         if (checkbox.checked && confirm('Valider ce mois ? Cela mettra le statut à Terminé.')) {  
                             planning[index].validated = true;  
                             planning[index].statut = 'Terminé';  
-                            // Marquer checklist comme checked  
-                            selectedTask.checklist.forEach(item => item.checked = true);  
+                            // Marquer checklist comme checked si elle existe  
+                            if (selectedTask.checklist) selectedTask.checklist.forEach(item => item.checked = true);  
                             // Update status select  
                             const statusSelect = row.cells[4].querySelector('select');  
                             statusSelect.value = 'Terminé';  
@@ -1286,4 +1286,59 @@
         }  
 
         function saveAnnualPlanning() {  
-            const body = document
+            const body = document.getElementById('annual-body');  
+            if (!body) return;  
+            const planning = [];  
+            Array.from(body.rows).forEach(row => {  
+                const index = parseInt(row.dataset.monthIndex);  
+                planning[index] = {  
+                    responsible: row.cells[1].querySelector('select').value,  
+                    comments: row.cells[2].querySelector('input').value,  
+                    validated: row.cells[3].querySelector('input').checked,  
+                    statut: row.cells[4].querySelector('select').value  
+                };  
+            });  
+            db.ref(`preventive/tasks/${selectedDept}/${selectedTaskKey}/annualPlans/${selectedYear}`).set(planning);  
+            alert('Planning annuel sauvegardé !');  
+        }  
+
+        function generateTasksFromPlanning() {  
+            db.ref(`preventive/tasks/${selectedDept}/${selectedTaskKey}/annualPlans/${selectedYear}`).once('value', snapshot => {  
+                const planning = snapshot.val() || [];  
+                const dueMonths = calculateDueMonths(new Date(), selectedTask.frequence, selectedYear);  
+                const refPath = selectedDept === 'maintenance' ? `${selectedDept}/tasks/CMDG` : `${selectedDept}/tasks`; // Default site for maintenance  
+                dueMonths.forEach(monthIndex => {  
+                    const monthData = planning[monthIndex] || { statut: 'En attente', responsible: selectedTask.responsable, comments: '' };  
+                    if (monthData.statut === 'Terminé') return; // Skip si Terminé  
+                    const nextDate = new Date(selectedYear, monthIndex, 1).toISOString().split('T')[0]; // Premier du mois  
+                    db.ref(refPath).push({  
+                        tache: `${selectedTask.tache} (Préventive) - ${months[monthIndex]}`,  
+                        statut: monthData.statut,  
+                        date: nextDate,  
+                        dateButoir: nextDate,  
+                        responsable: monthData.responsable,  
+                        criticite: '3',  
+                        comments: [monthData.comments],  
+                        checklist: selectedTask.checklist ? JSON.parse(JSON.stringify(selectedTask.checklist)) : []  
+                    });  
+                });  
+                alert('Tâches générées pour les mois dus (non terminés) !');  
+            });  
+        }  
+
+        function exportAnnualToPDF() {  
+            const { jsPDF } = window.jspdf;  
+            const doc = new jsPDF();  
+            doc.text(`${selectedTask.tache} - Planning Annuel ${selectedYear}`, 10, 10);  
+            let y = 20;  
+            const rows = document.querySelectorAll('#annual-body tr');  
+            rows.forEach(row => {  
+                const cells = row.querySelectorAll('td');  
+                const isDue = row.querySelector('.due-month') ? ' (Due)' : '';  
+                doc.text(`${cells[0].textContent}${isDue} - Responsable: ${cells[1].querySelector('select').value} - Commentaires: ${cells[2].querySelector('input').value} - Validé: ${cells[3].querySelector('input').checked ? 'Oui' : 'Non'} - Statut: ${cells[4].querySelector('select').value}`, 10, y);  
+                y += 10;  
+            });  
+            doc.save(`${selectedTask.tache}_annual_${selectedYear}.pdf`);  
+        }  
+
+        //
