@@ -94,6 +94,7 @@
             loadButtonsForSection();
             openTab('dashboard');
             chargerTousDonnees();
+            console.log('Changed to section:', currentSection); // Debug: Vérifie le changement
         }
 
         function loadLogin() {
@@ -151,7 +152,7 @@
             auth.signOut().then(() => loadLogin());
         }
 
-        function loadInterface() {
+function loadInterface() {
             const main = document.getElementById('main-content');
             main.innerHTML = '';
             // Tabs communs
@@ -207,7 +208,7 @@
                                 <option value="En attente">En attente</option>
                             </select>
                             <input type="date" id="date-tasks" required>
-                            <input type="text" id="responsable-tasks" placeholder="Nom du responsable" required>
+                            <input type="text" id="responsable-tasks" placeholder="Nom du responsable (optionnel)">
                             <select id="criticite-tasks" required>
                                 <option value="">Criticité (1-5)</option>
                                 <option value="1">1 (Faible)</option>
@@ -239,7 +240,7 @@
                                     <option value="En attente">En attente</option>
                                 </select>
                                 <input type="date" id="date-${site}" required>
-                                <input type="text" id="responsable-${site}" placeholder="Nom du responsable" required>
+                                <input type="text" id="responsable-${site}" placeholder="Nom du responsable (optionnel)">
                                 <select id="criticite-${site}" required>
                                     <option value="">Criticité (1-5)</option>
                                     <option value="1">1 (Faible)</option>
@@ -262,6 +263,7 @@
             loadButtonsForSection();
             chargerTousDonnees();
             openTab('dashboard');
+            console.log('Interface loaded for section:', currentSection); // Debug: Vérifie le chargement
         }
 
         function loadButtonsForSection() {
@@ -277,7 +279,10 @@
             if (currentSection !== 'maintenance') {
                 const btn = document.createElement('button');
                 btn.textContent = 'Tâches à Suivre';
-                btn.onclick = () => openTab('tasks');
+                btn.onclick = () => {
+                    openTab('tasks');
+                    chargerDonnees('tasks'); // Force le chargement pour IT/Biomed
+                };
                 nav.appendChild(btn);
             } else {
                 maintenanceSites.forEach(site => {
@@ -296,7 +301,10 @@
                 tab.classList.add('active');
             }
             if (tabId === 'userManagement') updateUsersTable();
-            if (maintenanceSites.includes(tabId) || tabId === 'tasks' || tabId === 'completed-tasks') chargerDonnees(tabId);
+            if (maintenanceSites.includes(tabId) || tabId === 'tasks' || tabId === 'completed-tasks') {
+                chargerDonnees(tabId);
+                console.log('Opening tab:', tabId); // Debug: Vérifie l'ouverture
+            }
             if (tabId === 'dashboard') updateDashboard();
         }
 
@@ -340,9 +348,9 @@
             const tache = document.getElementById(`tache-${siteId}`).value;
             const statut = document.getElementById(`statut-${siteId}`).value;
             const date = document.getElementById(`date-${siteId}`).value;
-            const responsable = document.getElementById(`responsable-${siteId}`).value;
+            const responsable = document.getElementById(`responsable-${siteId}`).value || ''; // Vide si non rempli
             const criticite = document.getElementById(`criticite-${siteId}`).value;
-            if (!tache || !statut || !date || !responsable || !criticite) return alert('Veuillez remplir tous les champs.');
+            if (!tache || !statut || !date || !criticite) return alert('Veuillez remplir les champs obligatoires (tâche, statut, date, criticité).');
             const refPath = currentSection === 'maintenance' ? `${currentSection}/tasks/${siteId}` : `${currentSection}/tasks`;
             db.ref(refPath).push({ tache, statut, date, responsable, criticite });
             document.getElementById(`form-${siteId}`).reset();
@@ -384,7 +392,7 @@
 
             const respInput = document.createElement('input');
             respInput.type = 'text';
-            respInput.value = item.responsable || 'Non assigné';
+            respInput.value = item.responsable || '';
             respCell.innerHTML = '';
             respCell.appendChild(respInput);
 
@@ -408,7 +416,7 @@
                     tache: tacheInput.value,
                     statut: statutSelect.value,
                     date: dateInput.value,
-                    responsable: respInput.value,
+                    responsable: respInput.value || '', // Vide permis
                     criticite: critSelect.value
                 };
                 const refPath = currentSection === 'maintenance' ? `${currentSection}/tasks/${siteId}/${key}` : `${currentSection}/tasks/${key}`;
@@ -440,7 +448,10 @@
             let refPath = tabId === 'completed-tasks' ? `${currentSection}/completed-tasks` : (currentSection === 'maintenance' ? `${currentSection}/tasks/${tabId}` : `${currentSection}/tasks`);
             const tableId = tabId === 'completed-tasks' ? 'table-completed' : `table-${tabId}`;
             const tableBody = document.querySelector(`#${tableId} tbody`);
-            if (!tableBody) return;
+            if (!tableBody) {
+                console.error('Table body not found for:', tableId); // Debug: Si table manquante
+                return;
+            }
             db.ref(refPath).on('value', snapshot => {
                 tableBody.innerHTML = '';
                 if (!snapshot.exists() || snapshot.numChildren() === 0) {
@@ -474,6 +485,7 @@
                         actionsCell.appendChild(deleteBtn);
                     }
                 });
+                console.log('Data loaded for tab:', tabId); // Debug: Vérifie le chargement des données
             });
         }
 
