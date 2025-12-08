@@ -27,7 +27,9 @@
         .no-data { text-align: center; color: #666; padding: 10px; }
         .admin-only { display: none; }
         .overdue { color: red; }
-        .critical { color: orange; font-weight: bold; }
+        .crit-high-red { color: red; font-weight: bold; }
+        .crit-medium-orange { color: orange; font-weight: bold; }
+        .crit-low-green { color: green; font-weight: bold; }
         #week-selector { margin: 10px 0; text-align: center; }
         @media (max-width: 600px) { nav { flex-direction: column; } }
     </style>
@@ -235,11 +237,11 @@
                                 <input type="text" id="new-responsable" readonly>
                                 <select id="new-criticite" required>
                                     <option value="">Criticité (1-5)</option>
-                                    <option value="1">1 (Faible)</option>
+                                    <option value="1">1 (Très Critique)</option>
                                     <option value="2">2</option>
                                     <option value="3">3</option>
                                     <option value="4">4</option>
-                                    <option value="5">5 (Critique)</option>
+                                    <option value="5">5 (Faible)</option>
                                 </select>
                                 <select id="new-section" required>
                                     <option value="">Section</option>
@@ -289,11 +291,11 @@
                             <input type="text" id="responsable-tasks" placeholder="Nom du responsable (optionnel)">
                             <select id="criticite-tasks" required>
                                 <option value="">Criticité (1-5)</option>
-                                <option value="1">1 (Faible)</option>
+                                <option value="1">1 (Très Critique)</option>
                                 <option value="2">2</option>
                                 <option value="3">3</option>
                                 <option value="4">4</option>
-                                <option value="5">5 (Critique)</option>
+                                <option value="5">5 (Faible)</option>
                             </select>
                             <button type="button" onclick="ajouterTache('tasks')">Ajouter Tâche</button>
                         </form>
@@ -322,11 +324,11 @@
                                 <input type="text" id="responsable-${site}" placeholder="Nom du responsable (optionnel)">
                                 <select id="criticite-${site}" required>
                                     <option value="">Criticité (1-5)</option>
-                                    <option value="1">1 (Faible)</option>
+                                    <option value="1">1 (Très Critique)</option>
                                     <option value="2">2</option>
                                     <option value="3">3</option>
                                     <option value="4">4</option>
-                                    <option value="5">5 (Critique)</option>
+                                    <option value="5">5 (Faible)</option>
                                 </select>
                                 <button type="button" onclick="ajouterTache('${site}')">Ajouter Tâche</button>
                             </form>
@@ -427,7 +429,7 @@
             });
         }
 
-        function ajouterTache(siteId) {
+function ajouterTache(siteId) {
             if (!isAuthorized()) return alert('Connectez-vous pour ajouter des tâches.');
             const tache = document.getElementById(`tache-${siteId}`).value;
             const statut = document.getElementById(`statut-${siteId}`).value;
@@ -540,7 +542,12 @@
                     row.insertCell(2).textContent = item.date;
                     row.insertCell(3).textContent = item.dateButoir;
                     row.insertCell(4).textContent = item.responsable;
-                    row.insertCell(5).textContent = item.criticite;
+                    const critCell = row.insertCell(5);
+                    critCell.textContent = item.criticite;
+                    const critNum = parseInt(item.criticite);
+                    if (critNum === 1) critCell.classList.add('crit-high-red');
+                    else if (critNum === 2 || critNum === 3) critCell.classList.add('crit-medium-orange');
+                    else if (critNum === 4 || critNum === 5) critCell.classList.add('crit-low-green');
                     if (tabId !== 'completed-tasks') {
                         const actionsCell = row.insertCell(6);
                         const editBtn = document.createElement('button');
@@ -728,7 +735,10 @@
                                     row.insertCell(1).textContent = task.date;
                                     const critCell = row.insertCell(2);
                                     critCell.textContent = task.criticite;
-                                    if (parseInt(task.criticite) >= 4) critCell.classList.add('critical');
+                                    const critNum = parseInt(task.criticite);
+                                    if (critNum === 1) critCell.classList.add('crit-high-red');
+                                    else if (critNum === 2 || critNum === 3) critCell.classList.add('crit-medium-orange');
+                                    else if (critNum === 4 || critNum === 5) critCell.classList.add('crit-low-green');
                                     const butoirCell = row.insertCell(3);
                                     butoirCell.textContent = task.dateButoir || task.date;
                                     if (taskDateButoir < today) butoirCell.classList.add('overdue');
