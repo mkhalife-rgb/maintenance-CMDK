@@ -32,16 +32,16 @@
         .crit-low-green { color: green; font-weight: bold; }
         #week-selector { margin: 10px 0; text-align: center; }
         .comment-section { margin-top: 10px; }
-        .log-entry { border-bottom: 1px solid #ddd; padding: 5px; }
         .priority-alert { color: red; font-weight: bold; }
         .checkbox-table td { vertical-align: middle; }
         .checkbox-table input[type="checkbox"] { transform: scale(1.5); margin-right: 10px; }
         #dept-select { margin: 10px 0; width: 200px; }
         #task-list { margin-top: 20px; }
-        .task-item { cursor: pointer; padding: 10px; border: 1px solid #ddd; margin-bottom: 5px; border-radius: 5px; }
+        .task-item { cursor: pointer; padding: 10px; border: 1px solid #ddd; margin-bottom: 5px; border-radius: 5px; display: flex; justify-content: space-between; align-items: center; }
         .task-item:hover { background-color: #f0f0f0; }
         #task-detail { display: none; margin-top: 20px; border: 1px solid #ddd; padding: 10px; border-radius: 5px; }
-        @media (max-width: 600px) { nav { flex-direction: column; } }
+        .due-month { background-color: #d4edda; } /* Vert clair pour mois dus */
+        @media (max-width: 600px) { nav { flex-direction: column; } table { font-size: 12px; } }
     </style>
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
@@ -105,6 +105,7 @@
             'Électricité': 'Vérifier câblages, Tester disjoncteurs, Contrôler éclairage',
             // Ajoute plus pour d'autres templates si besoin
         };
+        const months = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
 
         auth.onAuthStateChanged(user => {
             currentUser = user;
@@ -189,7 +190,7 @@
         function loadInterface() {
             const main = document.getElementById('main-content');
             main.innerHTML = '';
-            // Tabs communs
+            // Tabs communs (sans audit-logs)
             main.innerHTML += `
                 <div id="dashboard" class="tab-content">
                     <h2>Tableau de Bord</h2>
@@ -230,10 +231,6 @@
                         <tbody></tbody>
                     </table>
                     <button type="button" onclick="effacerToutesDonneesTerminees()">Effacer Toutes les Tâches Terminées</button>
-                </div>
-                <div id="audit-logs" class="tab-content admin-only">
-                    <h2>Logs d'Activité</h2>
-                    <div id="logs-list"></div>
                 </div>
             `;
             // Tabs spécifiques
@@ -324,10 +321,10 @@
                         </select>
                         <button id="add-task-btn" style="display:none;" onclick="showAddTaskForm()">Ajouter une Tâche Préventive</button>
                         <div id="add-task-form" style="display:none;">
-                            <h3>Ajouter Tâche Préventive</h3>
-                            <form>
-                                <input type="text" id="new-task-name" placeholder="Nom de la tâche (ex: Climatiseurs)" required>
-                                <select id="new-task-freq" required>
+                            <h3 id="add-task-title">Ajouter Tâche Préventive</h3>
+                            <form id="task-form">
+                                <input type="text" id="task-name" placeholder="Nom de la tâche (ex: Climatiseurs)" required>
+                                <select id="task-freq" required>
                                     <option value="">Fréquence</option>
                                     <option value="daily">Quotidien</option>
                                     <option value="weekly">Hebdomadaire</option>
@@ -339,29 +336,31 @@
                                     <option value="annual">Annuel</option>
                                     <option value="biannual">Bi-annuel (chaque 2 ans)</option>
                                 </select>
-                                <input type="date" id="new-task-start" placeholder="Date de début" required>
-                                <select id="new-task-resp" required>
+                                <input type="date" id="task-start" placeholder="Date de début" required>
+                                <select id="task-resp" required>
                                     <option value="">Responsable</option>
                                 </select>
-                                <textarea id="new-task-checklist" placeholder="Checklist (séparée par virgules, ex: Vérifier filtres, Nettoyer)"></textarea>
-                                <button type="button" onclick="saveNewTask()">Sauvegarder</button>
+                                <textarea id="task-checklist" placeholder="Checklist (séparée par virgules, ex: Vérifier filtres, Nettoyer)"></textarea>
+                                <button type="button" onclick="saveTask()">Sauvegarder</button>
                             </form>
                             <h4>Suggestions de Tâches (cliquez pour pré-remplir)</h4>
                             <ul id="task-templates"></ul>
                         </div>
                         <div id="task-list"></div>
-                        <div id="task-detail">
+                        <div id="task-detail" style="display:none;">
                             <h3 id="detail-title"></h3>
-                            <table class="checkbox-table">
-                                <thead><tr><th>Cocher</th><th>Sous-tâche</th><th>Date Validation</th><th>Notes</th></tr></thead>
-                                <tbody id="detail-body"></tbody>
+                            <select id="year-select" onchange="loadAnnualPlanning()">
+                                <!-- Années dynamiques -->
+                            </select>
+                            <table id="annual-table">
+                                <thead><tr><th>Mois</th><th>Commentaires</th><th>Responsable</th></tr></thead>
+                                <tbody id="annual-body"></tbody>
                             </table>
-                            <button onclick="generateTasksFromDetail()">Générer Tâches Automatiques</button>
-                            <button onclick="exportChecklistToPDF()">Exporter en PDF</button>
+                            <button onclick="saveAnnualPlanning()">Sauvegarder Planning</button>
+                            <button onclick="generateTasksFromPlanning()">Générer Tâches Automatiques</button>
                         </div>
                     </div>
                 `;
-                // Pas d'appel initial ici ; les fonctions sont appelées via onchange/clics
             } else if (currentSection !== 'maintenance') {
                 main.innerHTML += `
                     <div id="tasks" class="tab-content">
@@ -436,13 +435,12 @@
             if (currentSection === 'preventive') openTab('preventive-tab');
             else openTab('dashboard');
             checkAdminAndShowElements();
-            loadAuditLogs();
         }
 
         function loadButtonsForSection() {
             const nav = document.getElementById('nav-bar');
             nav.innerHTML = '';
-            const commonTabs = ['dashboard', 'userManagement', 'reports', 'completed-tasks', 'audit-logs'];
+            const commonTabs = ['dashboard', 'userManagement', 'reports', 'completed-tasks']; // Sans audit-logs
             commonTabs.forEach(tabId => {
                 const btn = document.createElement('button');
                 btn.textContent = tabId.charAt(0).toUpperCase() + tabId.slice(1).replace('-', ' ');
@@ -485,7 +483,6 @@
             if (maintenanceSites.includes(tabId) || tabId === 'tasks' || tabId === 'completed-tasks') chargerDonnees(tabId);
             if (tabId === 'dashboard') updateDashboard();
             if (tabId === 'planning-tab') loadPlanning();
-            if (tabId === 'audit-logs') loadAuditLogs();
         }
 
         function isAdmin() {
@@ -496,37 +493,11 @@
             return !!currentUser;
         }
 
-        function logAction(action, details) {
-            if (!currentUser) return;
-            db.ref(`${currentSection}/audit-logs`).push({
-                user: currentUser.email,
-                action,
-                details,
-                timestamp: new Date().toISOString()
-            });
-        }
-
-        function loadAuditLogs() {
-            const logsList = document.getElementById('logs-list');
-            if (!logsList || !isAdmin()) return;
-            logsList.innerHTML = '';
-            db.ref(`${currentSection}/audit-logs`).on('value', snapshot => {
-                snapshot.forEach(child => {
-                    const log = child.val();
-                    const div = document.createElement('div');
-                    div.classList.add('log-entry');
-                    div.textContent = `[${log.timestamp}] ${log.user} : ${log.action} - ${log.details}`;
-                    logsList.appendChild(div);
-                });
-            });
-        }
-
         function ajouterUtilisateur() {
             if (!isAdmin()) return alert('Seul l\'admin peut ajouter des utilisateurs.');
             const newUserEmail = document.getElementById('newUserEmail').value;
             if (!newUserEmail) return;
             db.ref('authorizedUsers').push(newUserEmail);
-            logAction('Ajout utilisateur', newUserEmail);
             alert('Utilisateur ajouté: ' + newUserEmail);
             updateUsersTable();
         }
@@ -545,7 +516,6 @@
                     removeBtn.textContent = 'Supprimer';
                     removeBtn.onclick = () => {
                         db.ref('authorizedUsers/' + child.key).remove().then(updateUsersTable);
-                        logAction('Suppression utilisateur', user);
                     };
                     actionsCell.appendChild(removeBtn);
                 });
@@ -565,7 +535,6 @@
             if (!tache || !statut || !date || !criticite) return alert('Veuillez remplir les champs obligatoires.');
             const refPath = currentSection === 'maintenance' ? `${currentSection}/tasks/${siteId}` : `${currentSection}/tasks`;
             db.ref(refPath).push({ tache, statut, date, dateButoir, responsable, criticite, comments: [], checklist, signature: '' });
-            logAction('Ajout tâche', tache);
             const form = document.getElementById(`form-${siteId}`);
             if (form) form.reset();
             alert('Tâche ajoutée !');
@@ -616,7 +585,6 @@
                 };
                 const refPath = section === 'maintenance' ? `${section}/tasks/${siteId}/${key}` : `${section}/tasks/${key}`;
                 db.ref(refPath).update(newData);
-                logAction('Mise à jour tâche', newData.tache);
                 if (newData.statut === 'Terminée') {
                     db.ref(`${section}/completed-tasks`).push({...newData, completionDate: new Date().toISOString(), signature: `${currentUser.email} - ${new Date().toLocaleString()}`});
                     db.ref(refPath).remove();
@@ -638,7 +606,6 @@
                 db.ref(`${section}/completed-tasks`).push(item);
             }
             db.ref(refPath).remove();
-            logAction('Suppression tâche', item.tache);
             alert('Tâche supprimée.');
             if (currentSection !== 'planning') chargerDonnees(siteId);
             updateDashboard();
@@ -708,7 +675,6 @@
             if (modal) {
                 comments.push(`${currentUser.email}: ${modal}`);
                 db.ref(taskRef).update({comments});
-                logAction('Ajout commentaire', modal);
             }
         }
 
@@ -720,7 +686,6 @@
                 if (!isNaN(index) && index < checklist.length) {
                     checklist[index].checked = true;
                     db.ref(taskRef).update({checklist});
-                    logAction('Mise à jour checklist', 'Item ' + index);
                 }
             }
         }
@@ -787,7 +752,6 @@
             if (!isAdmin()) return alert('Seul l\'admin peut effacer.');
             if (confirm('Êtes-vous sûr ?')) {
                 db.ref(`${currentSection}/completed-tasks`).remove();
-                logAction('Effacement tâches terminées', 'Toutes');
                 alert('Tâches terminées effacées.');
             }
         }
@@ -1010,7 +974,6 @@
                     const taskKey = row.dataset.taskKey;
                     const refPath = section === 'maintenance' ? `${section}/tasks/${subKey}/${taskKey}` : `${section}/tasks/${taskKey}`;
                     db.ref(refPath).remove();
-                    logAction('Effacement planning', 'Tâche ' + taskKey);
                 });
                 alert('Contenu effacé.');
                 loadPlanning();
@@ -1048,17 +1011,18 @@
             if (!newData.tache || !newData.statut || !newData.date || !newData.dateButoir || !newData.criticite) return alert('Remplissez tous les champs.');
             const refPath = section === 'maintenance' ? `${section}/tasks/${site}` : `${section}/tasks`;
             db.ref(refPath).push(newData);
-            logAction('Ajout tâche planning', newData.tache);
             document.getElementById('form-new-planning').reset();
             document.getElementById('new-planning-form').style.display = 'none';
             alert('Tâche ajoutée.');
             loadPlanning();
         }
 
-        // Fonctions pour Maintenance Préventive (reconfigurées)
+        // Fonctions pour Maintenance Préventive
         let selectedDept = '';
         let selectedTaskKey = '';
         let selectedTask = null;
+        let selectedYear = new Date().getFullYear();
+        let isEditing = false;
 
         function loadTaskList(dept) {
             selectedDept = dept;
@@ -1080,18 +1044,33 @@
                     const item = child.val();
                     const div = document.createElement('div');
                     div.classList.add('task-item');
-                    div.textContent = `${item.tache} (${item.frequence})`;
-                    div.onclick = () => showTaskDetail(child.key, item, dept);
+                    const textSpan = document.createElement('span');
+                    textSpan.textContent = `${item.tache} (${item.frequence})`;
+                    textSpan.onclick = () => showTaskDetail(child.key, item, dept);
+                    div.appendChild(textSpan);
+                    const editBtn = document.createElement('button');
+                    editBtn.textContent = 'Modifier';
+                    editBtn.onclick = () => showAddTaskForm(child.key, item);
+                    div.appendChild(editBtn);
                     taskList.appendChild(div);
                 });
             });
         }
 
-        function showAddTaskForm() {
+        function showAddTaskForm(key = null, task = null) {
             const form = document.getElementById('add-task-form');
+            const title = document.getElementById('add-task-title');
             if (form) form.style.display = 'block';
+            if (title) title.textContent = key ? 'Modifier Tâche Préventive' : 'Ajouter Tâche Préventive';
+            isEditing = !!key;
+            selectedTaskKey = key;
+            document.getElementById('task-name').value = task ? task.tache : '';
+            document.getElementById('task-freq').value = task ? task.frequence : '';
+            document.getElementById('task-start').value = task ? task.debut : '';
+            document.getElementById('task-resp').value = task ? task.responsable : '';
+            document.getElementById('task-checklist').value = task ? task.checklist.map(i => i.text).join(', ') : '';
             loadTaskTemplates(selectedDept);
-            loadPrestatairesForPreventive('new-task-resp');
+            loadPrestatairesForPreventive('task-resp');
         }
 
         function loadTaskTemplates(dept) {
@@ -1103,15 +1082,15 @@
                 li.textContent = template;
                 li.style.cursor = 'pointer';
                 li.onclick = () => {
-                    document.getElementById('new-task-name').value = template;
-                    document.getElementById('new-task-checklist').value = checklistSuggestions[template] || '';
+                    document.getElementById('task-name').value = template;
+                    document.getElementById('task-checklist').value = checklistSuggestions[template] || '';
                 };
                 list.appendChild(li);
             });
         }
 
         function loadPrestatairesForPreventive(selectId) {
-            const select = document.getElementById(selectId || 'new-task-resp');
+            const select = document.getElementById(selectId);
             if (!select) return;
             db.ref('authorizedUsers').once('value', snapshot => {
                 select.innerHTML = '<option value="">Responsable</option>';
@@ -1125,19 +1104,25 @@
             });
         }
 
-        function saveNewTask() {
-            const tache = document.getElementById('new-task-name').value;
-            const frequence = document.getElementById('new-task-freq').value;
-            const debut = document.getElementById('new-task-start').value;
-            const responsable = document.getElementById('new-task-resp').value;
-            const checklistStr = document.getElementById('new-task-checklist').value;
+        function saveTask() {
+            const tache = document.getElementById('task-name').value;
+            const frequence = document.getElementById('task-freq').value;
+            const debut = document.getElementById('task-start').value;
+            const responsable = document.getElementById('task-resp').value;
+            const checklistStr = document.getElementById('task-checklist').value;
             const checklist = checklistStr ? checklistStr.split(',').map(d => ({ text: d.trim(), checked: false, lastValidated: '', notes: '' })) : [];
             if (!tache || !frequence || !debut || !responsable) return alert('Remplissez tous les champs.');
-            db.ref(`preventive/tasks/${selectedDept}`).push({ tache, frequence, debut, responsable, checklist });
-            logAction('Ajout tâche préventive', `${selectedDept} - ${tache}`);
+            const data = { tache, frequence, debut, responsable, checklist };
+            const ref = db.ref(`preventive/tasks/${selectedDept}`);
+            if (isEditing) {
+                ref.child(selectedTaskKey).update(data);
+                alert('Tâche modifiée !');
+            } else {
+                ref.push(data);
+                alert('Tâche ajoutée !');
+            }
             document.getElementById('add-task-form').style.display = 'none';
             loadTaskList(selectedDept);
-            alert('Tâche ajoutée !');
         }
 
         function showTaskDetail(key, task, dept) {
@@ -1146,83 +1131,114 @@
             selectedTask = task;
             const detail = document.getElementById('task-detail');
             const title = document.getElementById('detail-title');
-            const body = document.getElementById('detail-body');
-            if (!detail || !title || !body) return;
-            title.textContent = `${task.tache} - Fréquence: ${task.frequence} - Début: ${task.debut} - Responsable: ${task.responsable}`;
-            body.innerHTML = '';
-            task.checklist.forEach((item, index) => {
-                const row = body.insertRow();
-                const checkCell = row.insertCell(0);
-                const checkbox = document.createElement('input');
-                checkbox.type = 'checkbox';
-                checkbox.checked = item.checked;
-                checkbox.onclick = () => updateCheckbox(dept, key, index, checkbox.checked);
-                checkCell.appendChild(checkbox);
-                row.insertCell(1).textContent = item.text;
-                row.insertCell(2).textContent = item.lastValidated || 'Non validé';
-                const notesCell = row.insertCell(3);
-                notesCell.innerHTML = `<input type="text" value="${item.notes || ''}" onblur="updateNotes('${dept}', '${key}', ${index}, this.value)">`;
-            });
-            detail.style.display = 'block';
+            if (detail) detail.style.display = 'block';
+            if (title) title.textContent = `${task.tache} - Fréquence: ${task.frequence} - Début: ${task.debut} - Responsable par défaut: ${task.responsable}`;
+            loadYearSelect();
+            loadAnnualPlanning();
         }
 
-        function updateCheckbox(dept, key, index, checked) {
-            const refPath = `preventive/tasks/${dept}/${key}/checklist/${index}`;
-            db.ref(refPath).update({ checked, lastValidated: checked ? new Date().toLocaleDateString() : '' });
-            logAction('Mise à jour checkbox', `Dept: ${dept}, Task: ${key}, Item: ${index}`);
-            // Recharger le détail pour mise à jour UI
-            db.ref(`preventive/tasks/${dept}/${key}`).once('value', snapshot => {
-                showTaskDetail(key, snapshot.val(), dept);
-            });
-        }
-
-        function updateNotes(dept, key, index, notes) {
-            const refPath = `preventive/tasks/${dept}/${key}/checklist/${index}`;
-            db.ref(refPath).update({ notes });
-            logAction('Mise à jour notes', `Dept: ${dept}, Task: ${key}, Item: ${index}`);
-        }
-
-        function generateTasksFromDetail() {
-            if (!selectedTask) return;
-            const startDate = new Date(selectedTask.debut);
-            const today = new Date();
-            let nextDate = new Date(startDate);
-            const freqMap = {
-                daily: 1, weekly: 7, monthly: 30, bimonthly: 60, trimonthly: 90, quadmonthly: 120, 
-                semiannual: 182, annual: 365, biannual: 730
-            };
-            const daysToAdd = freqMap[selectedTask.frequence] || 30;
-            while (nextDate <= today) {
-                nextDate = new Date(nextDate.getTime() + daysToAdd * 24 * 60 * 60 * 1000);
+        function loadYearSelect() {
+            const select = document.getElementById('year-select');
+            if (!select) return;
+            select.innerHTML = '';
+            const currentYear = new Date().getFullYear();
+            for (let y = currentYear - 2; y <= currentYear + 2; y++) {
+                const option = document.createElement('option');
+                option.value = y;
+                option.textContent = y;
+                if (y === selectedYear) option.selected = true;
+                select.appendChild(option);
             }
-            const refPath = selectedDept === 'maintenance' ? `${selectedDept}/tasks/CMDG` : `${selectedDept}/tasks`; // Défaut CMDG pour maintenance
-            selectedTask.checklist.forEach(item => {
-                db.ref(refPath).push({
-                    tache: `${selectedTask.tache} (Préventive) - ${item.text}`,
-                    statut: 'En attente',
-                    date: nextDate.toISOString().split('T')[0],
-                    dateButoir: nextDate.toISOString().split('T')[0],
-                    responsable: selectedTask.responsable,
-                    criticite: '3',
-                    comments: [],
-                    checklist: [{ text: item.text, checked: false }]
+        }
+
+        function loadAnnualPlanning() {
+            selectedYear = parseInt(document.getElementById('year-select').value);
+            const body = document.getElementById('annual-body');
+            if (!body) return;
+            body.innerHTML = '';
+            db.ref(`preventive/tasks/${selectedDept}/${selectedTaskKey}/annualPlans/${selectedYear}`).once('value', snapshot => {
+                let planning = snapshot.val() || months.map(() => ({ comments: '', responsible: selectedTask.responsable }));
+                const dueMonths = calculateDueMonths(selectedTask.debut, selectedTask.frequence, selectedYear);
+                months.forEach((month, index) => {
+                    const row = body.insertRow();
+                    const monthCell = row.insertCell(0);
+                    monthCell.textContent = month;
+                    if (dueMonths.includes(index)) monthCell.classList.add('due-month');
+                    const commentsCell = row.insertCell(1);
+                    commentsCell.innerHTML = `<input type="text" value="${planning[index].comments}">`;
+                    const respCell = row.insertCell(2);
+                    const select = document.createElement('select');
+                    db.ref('authorizedUsers').once('value', snap => {
+                        snap.forEach(child => {
+                            const email = child.val();
+                            const option = document.createElement('option');
+                            option.value = email;
+                            option.textContent = email;
+                            if (email === planning[index].responsible) option.selected = true;
+                            select.appendChild(option);
+                        });
+                    });
+                    respCell.appendChild(select);
                 });
             });
-            alert('Tâches générées et ajoutées aux sections !');
-            logAction('Génération tâches préventives', selectedTask.tache);
         }
 
-        function exportChecklistToPDF() {
-            if (!selectedTask) return;
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF();
-            doc.text(`${selectedTask.tache} - Checklist Préventive`, 10, 10);
-            let y = 20;
-            selectedTask.checklist.forEach(item => {
-                doc.text(`${item.text} [${item.checked ? 'Coché' : 'Non coché'}] - Validé le: ${item.lastValidated || 'N/A'} - Notes: ${item.notes || 'Aucune'}`, 10, y);
-                y += 10;
+        function calculateDueMonths(startDateStr, frequence, year) {
+            const startDate = new Date(startDateStr);
+            const due = [];
+            const freqMap = {
+                daily: 1 / 30, weekly: 1 / 4, monthly: 1, bimonthly: 2, trimonthly: 3, quadmonthly: 4, 
+                semiannual: 6, annual: 12, biannual: 24
+            };
+            const interval = freqMap[frequence] || 1;
+            let current = new Date(startDate);
+            while (current.getFullYear() < year) {
+                current.setMonth(current.getMonth() + interval);
+            }
+            while (current.getFullYear() === year) {
+                due.push(current.getMonth());
+                current.setMonth(current.getMonth() + interval);
+                if (current.getFullYear() > year) break;
+            }
+            return due;
+        }
+
+        function saveAnnualPlanning() {
+            const body = document.getElementById('annual-body');
+            if (!body) return;
+            const planning = [];
+            Array.from(body.rows).forEach(row => {
+                const comments = row.cells[1].querySelector('input').value;
+                const responsible = row.cells[2].querySelector('select').value;
+                planning.push({ comments, responsible });
             });
-            doc.save(`${selectedTask.tache}_checklist.pdf`);
+            db.ref(`preventive/tasks/${selectedDept}/${selectedTaskKey}/annualPlans/${selectedYear}`).set(planning);
+            alert('Planning annuel sauvegardé !');
+        }
+
+        function generateTasksFromPlanning() {
+            db.ref(`preventive/tasks/${selectedDept}/${selectedTaskKey}/annualPlans/${selectedYear}`).once('value', snapshot => {
+                const planning = snapshot.val() || [];
+                const dueMonths = calculateDueMonths(selectedTask.debut, selectedTask.frequence, selectedYear);
+                const refPath = selectedDept === 'maintenance' ? `${selectedDept}/tasks/CMDG` : `${selectedDept}/tasks`;
+                selectedTask.checklist.forEach(item => {
+                    dueMonths.forEach(monthIndex => {
+                        const monthData = planning[monthIndex] || { responsible: selectedTask.responsable };
+                        const nextDate = new Date(selectedYear, monthIndex, 1); // Premier du mois
+                        db.ref(refPath).push({
+                            tache: `${selectedTask.tache} (Préventive) - ${item.text} - ${months[monthIndex]}`,
+                            statut: 'En attente',
+                            date: nextDate.toISOString().split('T')[0],
+                            dateButoir: nextDate.toISOString().split('T')[0],
+                            responsable: monthData.responsible,
+                            criticite: '3',
+                            comments: [monthData.comments],
+                            checklist: [{ text: item.text, checked: false }]
+                        });
+                    });
+                });
+                alert('Tâches générées pour les mois dus !');
+            });
         }
 
         // Initialisation
